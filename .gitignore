@@ -1,0 +1,21 @@
+# Dependencies
+node_modules/
+spacetimedb/node_modules/
+spacetimedb/dist/
+
+# Build output
+dist/
+
+# Playwright
+playwright-report/
+test-results/
+
+# Environment (keep .env.local for dev defaults, never commit real secrets)
+.env
+.env*.local
+
+# SpacetimeDB
+spacetimedb/.spacetime/
+
+# OS
+.DS_Store
