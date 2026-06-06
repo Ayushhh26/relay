@@ -102,7 +102,7 @@ jobs:
         run: spacetime publish relay-demo --server local --yes
 
       - name: Generate client bindings
-        run: spacetime generate relay-demo --lang typescript --out-dir src/module_bindings --module-path spacetimedb --server local -y
+        run: spacetime generate relay-demo --lang typescript --out-dir src/module_bindings --module-path spacetimedb -y
 
       - name: Build Vite preview bundle
         run: npm run build
