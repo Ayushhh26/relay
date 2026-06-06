@@ -18,13 +18,10 @@ export default defineConfig({
     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
   ],
 
-  // Start vite preview before running tests (local only; CI builds first)
-  webServer: process.env.CI
-    ? undefined
-    : {
-        command: 'npm run preview',
-        url: BASE_URL,
-        reuseExistingServer: true,
-        timeout: 10_000,
-      },
+  webServer: {
+    command: 'npm run preview',
+    url: BASE_URL,
+    reuseExistingServer: !process.env.CI,
+    timeout: 15_000,
+  },
 })
