@@ -74,7 +74,8 @@ jobs:
           curl -fsSL "https://github.com/clockworklabs/SpacetimeDB/releases/download/v2.4.1/spacetime-x86_64-unknown-linux-gnu.tar.gz" \
             -o /tmp/spacetime.tar.gz
           tar -xzf /tmp/spacetime.tar.gz -C /tmp
-          sudo mv /tmp/spacetime /usr/local/bin/spacetime
+          sudo mv /tmp/spacetimedb-cli /usr/local/bin/spacetime
+          sudo mv /tmp/spacetimedb-standalone /usr/local/bin/spacetimedb-standalone
           spacetime --version
 
       - name: Install root dependencies
