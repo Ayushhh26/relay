@@ -1,0 +1,30 @@
+{
+  "name": "relay",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "test:unit": "vitest",
+    "test:e2e": "playwright test",
+    "test": "npm run test:unit -- --run && npm run test:e2e",
+    "spacetime:generate": "spacetime generate relay-demo --lang typescript --out-dir src/module_bindings --module-path spacetimedb -y",
+    "spacetime:publish:local": "spacetime publish relay-demo -y",
+    "spacetime:publish": "spacetime publish relay-demo --server maincloud -y"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "spacetimedb": "^2.4.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.60.0",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^5.0.2",
+    "typescript": "~5.6.2",
+    "vite": "^7.1.5"
+  }
+}
