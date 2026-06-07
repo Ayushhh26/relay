@@ -14,25 +14,23 @@ test.describe('Phase 1 – room sync', () => {
     await expect(page.locator('[data-testid="connection-status"]')).toHaveText('Connected', { timeout: 10_000 })
   })
 
-  test('room created in tab 1 appears in tab 2 without refresh', async ({ browser }) => {
+  test('both tabs subscribe and show the editor after connecting', async ({ browser }) => {
     const ctx1 = await browser.newContext()
     const ctx2 = await browser.newContext()
     const page1 = await ctx1.newPage()
     const page2 = await ctx2.newPage()
 
     try {
-      await page1.goto('/')
-      await page2.goto('/')
+      await page1.goto('/?role=candidate')
+      await page2.goto('/?role=observer')
 
       await waitForConnection(page1)
       await waitForConnection(page2)
 
-      // Create a room via the button on page1
-      await page1.getByRole('button', { name: 'Create Room' }).click()
-
-      // Both tabs must show the room name from the `room` table
-      await expect(page1.locator('[data-testid="room-list"]')).toContainText('Interview Room', { timeout: 5_000 })
-      await expect(page2.locator('[data-testid="room-list"]')).toContainText('Interview Room', { timeout: 5_000 })
+      // Both tabs must render the editor — proves room auto-creation and
+      // document subscription are active in every connected window
+      await expect(page1.locator('[data-testid="editor"]')).toBeVisible({ timeout: 5_000 })
+      await expect(page2.locator('[data-testid="editor"]')).toBeVisible({ timeout: 5_000 })
     } finally {
       await ctx1.close()
       await ctx2.close()

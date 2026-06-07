@@ -12,31 +12,32 @@ const room = table(
   }
 );
 
+const document = table(
+  { name: 'document', public: true },
+  {
+    roomId: t.u64().primaryKey(),   // one document per room
+    content: t.string(),
+    updatedBy: t.identity(),
+    updatedAt: t.u64(),
+  }
+);
+
 // ── Schema ────────────────────────────────────────────────────────────────
 
-const spacetimedb = schema({ room });
+const spacetimedb = schema({ room, document });
 export default spacetimedb;
 
 // ── Lifecycle ─────────────────────────────────────────────────────────────
 
-export const init = spacetimedb.init((_ctx) => {
-  // Phases 2+ add tables; lifecycle hooks extended there
-});
-
-export const onConnect = spacetimedb.clientConnected((_ctx) => {
-  // Presence tracking added in Phase 3
-});
-
-export const onDisconnect = spacetimedb.clientDisconnected((_ctx) => {
-  // Presence tracking added in Phase 3
-});
+export const init = spacetimedb.init((_ctx) => {});
+export const onConnect = spacetimedb.clientConnected((_ctx) => {});
+export const onDisconnect = spacetimedb.clientDisconnected((_ctx) => {});
 
 // ── Reducers ──────────────────────────────────────────────────────────────
 
 export const createRoom = spacetimedb.reducer(
   { title: t.string() },
   (ctx, { title }) => {
-    // Idempotent: skip if a room with this title already exists
     for (const existing of ctx.db.room.iter()) {
       if (existing.title === title) return;
     }
@@ -46,5 +47,27 @@ export const createRoom = spacetimedb.reducer(
       createdBy: ctx.sender,
       createdAt: ctx.timestamp.microsSinceUnixEpoch,
     });
+  }
+);
+
+export const updateDocument = spacetimedb.reducer(
+  { roomId: t.u64(), content: t.string() },
+  (ctx, { roomId, content }) => {
+    const existing = ctx.db.document.roomId.find(roomId);
+    if (existing) {
+      ctx.db.document.roomId.update({
+        ...existing,
+        content,
+        updatedBy: ctx.sender,
+        updatedAt: ctx.timestamp.microsSinceUnixEpoch,
+      });
+    } else {
+      ctx.db.document.insert({
+        roomId,
+        content,
+        updatedBy: ctx.sender,
+        updatedAt: ctx.timestamp.microsSinceUnixEpoch,
+      });
+    }
   }
 );
