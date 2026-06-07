@@ -3,6 +3,7 @@ import { tables, reducers } from './module_bindings'
 import { useSpacetimeDB, useTable, useReducer } from 'spacetimedb/react'
 import { Editor } from './Editor'
 import { AssistPanel } from './AssistPanel'
+import { RunPanel } from './RunPanel'
 
 const params = new URLSearchParams(window.location.search)
 export const ROOM_ID = BigInt(params.get('room') ?? '1')
@@ -23,10 +24,14 @@ function App() {
   const createRoom = useReducer(reducers.createRoom)
   const updateDocument = useReducer(reducers.updateDocument)
   const joinRoom = useReducer(reducers.joinRoom)
+  const appendRunOutput = useReducer(reducers.appendRunOutput)
+  const clearRunOutput = useReducer(reducers.clearRunOutput)
 
   const [rooms, roomsReady] = useTable(tables.room)
   const [docs] = useTable(tables.document)
   const [participants] = useTable(tables.participant)
+  const [runOutputs] = useTable(tables.runOutput)
+  const roomOutputs = runOutputs.filter(r => r.roomId === ROOM_ID)
 
   const remoteDoc = docs.find(d => d.roomId === ROOM_ID)
   const activeParticipants = participants.filter(p => p.roomId === ROOM_ID && p.active)
@@ -55,6 +60,22 @@ function App() {
       setLocalContent(remoteDoc.content)
     }
   }, [remoteDoc?.content])
+
+  function handleRun() {
+    clearRunOutput({ roomId: ROOM_ID })
+    const worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' })
+    let seq = 0n
+    worker.onmessage = (e: MessageEvent<{ logs: Array<{ stream: string; text: string }>; error: string | null }>) => {
+      const { logs, error } = e.data
+      for (const { stream, text } of logs) {
+        appendRunOutput({ roomId: ROOM_ID, seq, stream, text })
+        seq++
+      }
+      if (error) appendRunOutput({ roomId: ROOM_ID, seq, stream: 'stderr', text: error })
+      worker.terminate()
+    }
+    worker.postMessage({ code: editorValue })
+  }
 
   function handleChange(val: string) {
     setLocalContent(val)
@@ -103,14 +124,30 @@ function App() {
         ))}
       </div>
 
-      {/* Main area: editor + assist panel */}
+      {/* Main area: editor+terminal left, assist panel right */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-        <div style={{ flex: 1, overflow: 'hidden' }}>
-          <Editor
-            value={editorValue}
-            onChange={IS_CANDIDATE ? handleChange : undefined}
-            readOnly={!IS_CANDIDATE}
-          />
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          {IS_CANDIDATE && (
+            <div style={{ padding: '4px 8px', background: '#0d0d0d', borderBottom: '1px solid #1a1a1a' }}>
+              <button
+                data-testid="run-button"
+                onClick={handleRun}
+                style={{ padding: '3px 14px', borderRadius: 4, fontSize: 12, background: '#16a34a', border: 'none', color: '#fff', cursor: 'pointer' }}
+              >
+                ▶ Run
+              </button>
+            </div>
+          )}
+          <div style={{ flex: '0 0 60%', overflow: 'hidden' }}>
+            <Editor
+              value={editorValue}
+              onChange={IS_CANDIDATE ? handleChange : undefined}
+              readOnly={!IS_CANDIDATE}
+            />
+          </div>
+          <div style={{ flex: '0 0 40%', borderTop: '1px solid #1a1a1a', overflow: 'hidden' }}>
+            <RunPanel outputs={roomOutputs} />
+          </div>
         </div>
         <div style={{ width: 340, borderLeft: '1px solid #1a1a1a', overflow: 'hidden' }}>
           <AssistPanel roomId={ROOM_ID} policy={POLICY} />
