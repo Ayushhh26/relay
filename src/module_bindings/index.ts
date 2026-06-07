@@ -35,12 +35,14 @@ import {
 
 // Import all reducer arg schemas
 import CreateRoomReducer from "./create_room_reducer";
+import JoinRoomReducer from "./join_room_reducer";
 import UpdateDocumentReducer from "./update_document_reducer";
 
 // Import all procedure arg schemas
 
 // Import all table schema definitions
 import DocumentRow from "./document_table";
+import ParticipantRow from "./participant_table";
 import RoomRow from "./room_table";
 
 /** Type-only namespace exports for generated type groups. */
@@ -58,6 +60,17 @@ const tablesSchema = __schema({
       { name: 'document_room_id_key', constraint: 'unique', columns: ['roomId'] },
     ],
   }, DocumentRow),
+  participant: __table({
+    name: 'participant',
+    indexes: [
+      { accessor: 'id', name: 'participant_id_idx_btree', algorithm: 'btree', columns: [
+        'id',
+      ] },
+    ],
+    constraints: [
+      { name: 'participant_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, ParticipantRow),
   room: __table({
     name: 'room',
     indexes: [
@@ -74,6 +87,7 @@ const tablesSchema = __schema({
 /** The schema information for all reducers in this module. This is defined the same way as the reducers would have been defined in the server, except the body of the reducer is omitted in code generation. */
 const reducersSchema = __reducers(
   __reducerSchema("create_room", CreateRoomReducer),
+  __reducerSchema("join_room", JoinRoomReducer),
   __reducerSchema("update_document", UpdateDocumentReducer),
 );
 
