@@ -6,7 +6,7 @@
     "dev": "vercel dev"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.55.0"
+    "openai": "^4.0.0"
   },
   "devDependencies": {
     "@vercel/node": "^5.0.0",
