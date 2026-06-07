@@ -18,9 +18,11 @@ const oidcConfig = {
   scope: 'openid profile email',
   response_type: 'code',
   automaticSilentRenew: true,
+  onSigninCallback: () => {
+    window.history.replaceState({}, document.title, window.location.pathname)
+  },
 };
 
-// Used in the auth-enabled path — must be inside AuthProvider to call useAuth
 function AuthedConnector() {
   const auth = useAuth();
   const token = auth.user?.id_token;
@@ -38,6 +40,14 @@ function AuthedConnector() {
         .onConnectError(() => {}),
     [token]
   );
+
+  if (!token) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#111', color: '#e2e8f0', fontFamily: 'sans-serif' }}>
+        Connecting…
+      </div>
+    );
+  }
 
   return (
     <SpacetimeDBProvider connectionBuilder={connectionBuilder}>

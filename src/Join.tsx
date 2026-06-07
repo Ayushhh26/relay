@@ -1,7 +1,11 @@
 import { useRef, useState, useEffect } from 'react'
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom'
+import { useAuth } from 'react-oidc-context'
 import { useSpacetimeDB, useTable, useReducer } from 'spacetimedb/react'
 import { tables, reducers } from './module_bindings'
+import { profileDisplayName } from './profileDisplayName'
+
+const AUTH_ENABLED = import.meta.env.VITE_AUTH_ENABLED === 'true'
 
 export function Join() {
   const { roomId: roomIdStr } = useParams<{ roomId: string }>()
@@ -10,13 +14,15 @@ export function Join() {
   const role = searchParams.get('role') ?? 'observer'
   const nameFromUrl = searchParams.get('name') ?? ''
 
+  const auth = useAuth()
   const navigate = useNavigate()
   const { isActive } = useSpacetimeDB()
   const joinRoomFn = useReducer(reducers.joinRoom)
 
   const [rooms, roomsReady] = useTable(tables.room)
   const [participants, participantsReady] = useTable(tables.participant)
-  const [name, setName] = useState(nameFromUrl)
+  const defaultName = nameFromUrl || (AUTH_ENABLED ? profileDisplayName(auth) : '')
+  const [name, setName] = useState(defaultName)
   const [joinError, setJoinError] = useState<string | null>(null)
   const hasAutoJoined = useRef(false)
 

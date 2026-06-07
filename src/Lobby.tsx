@@ -1,12 +1,15 @@
-import { useState } from 'react'
+import { useState, type CSSProperties } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useAuth } from 'react-oidc-context'
 import { useSpacetimeDB, useTable, useReducer } from 'spacetimedb/react'
 import { tables, reducers } from './module_bindings'
-import { IDENTITY_KEY } from './config'
+import { profileDisplayName } from './profileDisplayName'
 
 const ORIGIN = window.location.origin
+const AUTH_ENABLED = import.meta.env.VITE_AUTH_ENABLED === 'true'
 
 export function Lobby() {
-  const { isActive } = useSpacetimeDB()
+  const { isActive, identity } = useSpacetimeDB()
   const createRoom = useReducer(reducers.createRoom)
   const [rooms] = useTable(tables.room)
 
@@ -14,7 +17,7 @@ export function Lobby() {
   const [policy, setPolicy] = useState('syntax-only')
   const [submittedTitle, setSubmittedTitle] = useState<string | null>(null)
 
-  const myIdentity = sessionStorage.getItem(IDENTITY_KEY) ?? ''
+  const myIdentityHex = identity?.toHexString() ?? ''
 
   function handleCreate() {
     if (!title.trim() || !isActive) return
@@ -25,9 +28,23 @@ export function Lobby() {
 
   const createdRoom = submittedTitle
     ? rooms
-        .filter(r => r.title === submittedTitle && r.createdBy.toHexString() === myIdentity)
+        .filter(r => {
+          if (r.title !== submittedTitle) return false
+          if (myIdentityHex) return r.createdBy.toHexString() === myIdentityHex
+          return true
+        })
         .sort((a, b) => Number(b.createdAt - a.createdAt))[0]
     : null
+
+  if (submittedTitle && !createdRoom) {
+    return (
+      <div style={{ minHeight: '100vh', background: '#111', color: '#e2e8f0', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontFamily: 'sans-serif', gap: 12 }}>
+        <h1 style={{ margin: 0, fontSize: 22 }}>Relay</h1>
+        <span data-testid="connection-status" style={{ fontSize: 13, color: '#4ade80' }}>Connected</span>
+        <p data-testid="creating-room" style={{ margin: 0, fontSize: 13, opacity: 0.5 }}>Creating room…</p>
+      </div>
+    )
+  }
 
   if (createdRoom) {
     const id = String(createdRoom.id)
@@ -39,6 +56,16 @@ export function Lobby() {
         </p>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%', maxWidth: 520 }}>
+          {AUTH_ENABLED ? (
+            <EnterAsInterviewerAuthed roomId={id} />
+          ) : (
+            <EnterAsInterviewerAnon roomId={id} />
+          )}
+
+          <p style={{ margin: 0, fontSize: 11, opacity: 0.4, textAlign: 'center' }}>
+            Share invite links with others
+          </p>
+
           <LinkCard testId="candidate-link" label="Candidate" href={`/join/${id}?role=candidate`} origin={ORIGIN} color="#4ade80" />
           <LinkCard testId="interviewer-link" label="Interviewer" href={`/join/${id}?role=interviewer`} origin={ORIGIN} color="#60a5fa" />
           <LinkCard testId="observer-link" label="Observer" href={`/join/${id}?role=observer`} origin={ORIGIN} color="#a78bfa" />
@@ -100,6 +127,72 @@ export function Lobby() {
         </button>
       </div>
     </div>
+  )
+}
+
+function useEnterAsInterviewer(roomId: string) {
+  const navigate = useNavigate()
+  const joinRoom = useReducer(reducers.joinRoom)
+  const { isActive } = useSpacetimeDB()
+  const [joining, setJoining] = useState(false)
+
+  async function enter(displayName: string) {
+    if (!isActive || joining) return
+    setJoining(true)
+    try {
+      await joinRoom({ roomId: BigInt(roomId), displayName, role: 'interviewer' })
+      navigate(`/room/${roomId}`, { replace: true })
+    } finally {
+      setJoining(false)
+    }
+  }
+
+  return { enter, joining, isActive }
+}
+
+function enterButtonStyle(enabled: boolean): CSSProperties {
+  return {
+    padding: '11px 0',
+    borderRadius: 8,
+    fontSize: 14,
+    fontWeight: 600,
+    border: 'none',
+    color: '#fff',
+    cursor: enabled ? 'pointer' : 'default',
+    background: enabled ? '#2563eb' : '#1e1e1e',
+  }
+}
+
+function EnterAsInterviewerAuthed({ roomId }: { roomId: string }) {
+  const auth = useAuth()
+  const { enter, joining, isActive } = useEnterAsInterviewer(roomId)
+  const enabled = isActive && !joining
+
+  return (
+    <button
+      data-testid="enter-as-interviewer-btn"
+      onClick={() => enter(profileDisplayName(auth, 'Interviewer'))}
+      disabled={!enabled}
+      style={enterButtonStyle(enabled)}
+    >
+      {joining ? 'Entering room…' : 'Enter as interviewer →'}
+    </button>
+  )
+}
+
+function EnterAsInterviewerAnon({ roomId }: { roomId: string }) {
+  const { enter, joining, isActive } = useEnterAsInterviewer(roomId)
+  const enabled = isActive && !joining
+
+  return (
+    <button
+      data-testid="enter-as-interviewer-btn"
+      onClick={() => enter('Host')}
+      disabled={!enabled}
+      style={enterButtonStyle(enabled)}
+    >
+      {joining ? 'Entering room…' : 'Enter as interviewer →'}
+    </button>
   )
 }
 

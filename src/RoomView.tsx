@@ -5,7 +5,6 @@ import { tables, reducers } from './module_bindings'
 import { Editor } from './Editor'
 import { AssistPanel } from './AssistPanel'
 import { RunPanel } from './RunPanel'
-import { IDENTITY_KEY } from './config'
 
 const DOT_COLOR: Record<string, string> = {
   candidate: '#4ade80',
@@ -16,9 +15,9 @@ const DOT_COLOR: Record<string, string> = {
 export function RoomView() {
   const { roomId: roomIdStr } = useParams<{ roomId: string }>()
   const ROOM_ID = BigInt(roomIdStr!)
-  const myIdentity = sessionStorage.getItem(IDENTITY_KEY) ?? ''
 
-  const { isActive } = useSpacetimeDB()
+  const { isActive, identity } = useSpacetimeDB()
+  const myIdentityHex = identity?.toHexString() ?? ''
   const updateDocument = useReducer(reducers.updateDocument)
   const appendRunOutput = useReducer(reducers.appendRunOutput)
   const clearRunOutput = useReducer(reducers.clearRunOutput)
@@ -35,7 +34,7 @@ export function RoomView() {
 
   // Derive role/permissions from the DB participant row — not from URL
   const myParticipant = activeParticipants.find(
-    p => p.identity.toHexString() === myIdentity
+    p => p.identity.toHexString() === myIdentityHex
   )
   const canEditDoc = myParticipant?.role === 'candidate'
   const canAsk = myParticipant?.role === 'candidate'
