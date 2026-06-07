@@ -10,6 +10,19 @@ import {
   type Infer as __Infer,
 } from "spacetimedb";
 
+export const AssistLog = __t.object("AssistLog", {
+  id: __t.u64(),
+  roomId: __t.u64(),
+  requestedBy: __t.identity(),
+  promptText: __t.string(),
+  responseText: __t.string(),
+  requestedType: __t.string(),
+  assistType: __t.string(),
+  policyStatus: __t.string(),
+  createdAt: __t.u64(),
+});
+export type AssistLog = __Infer<typeof AssistLog>;
+
 export const Document = __t.object("Document", {
   roomId: __t.u64(),
   content: __t.string(),

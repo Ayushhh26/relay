@@ -2,6 +2,7 @@ import { useRef, useState, useEffect } from 'react'
 import { tables, reducers } from './module_bindings'
 import { useSpacetimeDB, useTable, useReducer } from 'spacetimedb/react'
 import { Editor } from './Editor'
+import { AssistPanel } from './AssistPanel'
 
 const params = new URLSearchParams(window.location.search)
 export const ROOM_ID = BigInt(params.get('room') ?? '1')
@@ -102,13 +103,18 @@ function App() {
         ))}
       </div>
 
-      {/* Editor */}
-      <div style={{ flex: 1, overflow: 'hidden' }}>
-        <Editor
-          value={editorValue}
-          onChange={IS_CANDIDATE ? handleChange : undefined}
-          readOnly={!IS_CANDIDATE}
-        />
+      {/* Main area: editor + assist panel */}
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+        <div style={{ flex: 1, overflow: 'hidden' }}>
+          <Editor
+            value={editorValue}
+            onChange={IS_CANDIDATE ? handleChange : undefined}
+            readOnly={!IS_CANDIDATE}
+          />
+        </div>
+        <div style={{ width: 340, borderLeft: '1px solid #1a1a1a', overflow: 'hidden' }}>
+          <AssistPanel roomId={ROOM_ID} policy={POLICY} />
+        </div>
       </div>
     </div>
   )

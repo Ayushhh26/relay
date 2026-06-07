@@ -35,12 +35,14 @@ import {
 
 // Import all reducer arg schemas
 import CreateRoomReducer from "./create_room_reducer";
+import FinalizeAssistLogReducer from "./finalize_assist_log_reducer";
 import JoinRoomReducer from "./join_room_reducer";
 import UpdateDocumentReducer from "./update_document_reducer";
 
 // Import all procedure arg schemas
 
 // Import all table schema definitions
+import AssistLogRow from "./assist_log_table";
 import DocumentRow from "./document_table";
 import ParticipantRow from "./participant_table";
 import RoomRow from "./room_table";
@@ -49,6 +51,17 @@ import RoomRow from "./room_table";
 
 /** The schema information for all tables in this module. This is defined the same was as the tables would have been defined in the server. */
 const tablesSchema = __schema({
+  assistLog: __table({
+    name: 'assist_log',
+    indexes: [
+      { accessor: 'id', name: 'assist_log_id_idx_btree', algorithm: 'btree', columns: [
+        'id',
+      ] },
+    ],
+    constraints: [
+      { name: 'assist_log_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, AssistLogRow),
   document: __table({
     name: 'document',
     indexes: [
@@ -87,6 +100,7 @@ const tablesSchema = __schema({
 /** The schema information for all reducers in this module. This is defined the same way as the reducers would have been defined in the server, except the body of the reducer is omitted in code generation. */
 const reducersSchema = __reducers(
   __reducerSchema("create_room", CreateRoomReducer),
+  __reducerSchema("finalize_assist_log", FinalizeAssistLogReducer),
   __reducerSchema("join_room", JoinRoomReducer),
   __reducerSchema("update_document", UpdateDocumentReducer),
 );
