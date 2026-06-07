@@ -17,4 +17,5 @@ export default __t.row({
   createdAt: __t.u64().name("created_at"),
   kind: __t.string(),
   policy: __t.string(),
+  selectedQuestionId: __t.string().name("selected_question_id"),
 });

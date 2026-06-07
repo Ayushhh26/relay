@@ -28,6 +28,7 @@ export const Document = __t.object("Document", {
   content: __t.string(),
   updatedBy: __t.identity(),
   updatedAt: __t.u64(),
+  language: __t.string(),
 });
 export type Document = __Infer<typeof Document>;
 
@@ -53,6 +54,7 @@ export const Room = __t.object("Room", {
   createdAt: __t.u64(),
   kind: __t.string(),
   policy: __t.string(),
+  selectedQuestionId: __t.string(),
 });
 export type Room = __Infer<typeof Room>;
 

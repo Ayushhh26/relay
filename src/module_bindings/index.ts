@@ -42,7 +42,9 @@ import FinalizeAssistLogReducer from "./finalize_assist_log_reducer";
 import HeartbeatReducer from "./heartbeat_reducer";
 import JoinRoomReducer from "./join_room_reducer";
 import LeaveRoomReducer from "./leave_room_reducer";
+import SelectInterviewQuestionReducer from "./select_interview_question_reducer";
 import SendSignalReducer from "./send_signal_reducer";
+import SetDocumentLanguageReducer from "./set_document_language_reducer";
 import SetRoomPolicyReducer from "./set_room_policy_reducer";
 import UpdateDocumentReducer from "./update_document_reducer";
 import UpdateMediaStateReducer from "./update_media_state_reducer";
@@ -151,7 +153,9 @@ const reducersSchema = __reducers(
   __reducerSchema("heartbeat", HeartbeatReducer),
   __reducerSchema("join_room", JoinRoomReducer),
   __reducerSchema("leave_room", LeaveRoomReducer),
+  __reducerSchema("select_interview_question", SelectInterviewQuestionReducer),
   __reducerSchema("send_signal", SendSignalReducer),
+  __reducerSchema("set_document_language", SetDocumentLanguageReducer),
   __reducerSchema("set_room_policy", SetRoomPolicyReducer),
   __reducerSchema("update_document", UpdateDocumentReducer),
   __reducerSchema("update_media_state", UpdateMediaStateReducer),

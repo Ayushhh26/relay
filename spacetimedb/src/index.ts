@@ -11,6 +11,7 @@ const room = table(
     createdAt: t.u64(),
     kind: t.string().default('interview'),
     policy: t.string().default('syntax-only'),
+    selectedQuestionId: t.string().default(''),
   }
 );
 
@@ -21,6 +22,7 @@ const document = table(
     content: t.string(),
     updatedBy: t.identity(),
     updatedAt: t.u64(),
+    language: t.string().default('javascript'),
   }
 );
 
@@ -216,6 +218,7 @@ export const createRoom = spacetimedb.reducer(
       title,
       kind: kind || 'interview',
       policy: policy || 'syntax-only',
+      selectedQuestionId: '',
       createdBy: ctx.sender,
       createdAt: ctx.timestamp.microsSinceUnixEpoch,
     });
@@ -280,6 +283,7 @@ export const joinRoom = spacetimedb.reducer(
       ctx.db.document.insert({
         roomId,
         content: '',
+        language: 'javascript',
         updatedBy: ctx.sender,
         updatedAt: now,
       });
@@ -303,6 +307,7 @@ export const updateDocument = spacetimedb.reducer(
       ctx.db.document.insert({
         roomId,
         content,
+        language: 'javascript',
         updatedBy: ctx.sender,
         updatedAt: ctx.timestamp.microsSinceUnixEpoch,
       });
@@ -353,6 +358,66 @@ export const clearRunOutput = spacetimedb.reducer(
     const r = findRoom(ctx, roomId);
     const allowed = r?.kind === 'study' ? ['host', 'member'] : ['candidate'];
     requireParticipant(ctx, roomId, allowed);
+    for (const r of ctx.db.runOutput.iter()) {
+      if (r.roomId === roomId) ctx.db.runOutput.id.delete(r.id);
+    }
+  }
+);
+
+export const setDocumentLanguage = spacetimedb.reducer(
+  { roomId: t.u64(), language: t.string(), content: t.string() },
+  (ctx, { roomId, language, content }) => {
+    if (!['javascript', 'python'].includes(language)) throw new SenderError('Invalid language');
+    if (!canEdit(ctx, roomId)) throw new SenderError('Not allowed to edit');
+    const now = ctx.timestamp.microsSinceUnixEpoch;
+    const existing = ctx.db.document.roomId.find(roomId);
+    if (existing) {
+      ctx.db.document.roomId.update({
+        ...existing,
+        language,
+        content,
+        updatedBy: ctx.sender,
+        updatedAt: now,
+      });
+    } else {
+      ctx.db.document.insert({
+        roomId,
+        content,
+        language,
+        updatedBy: ctx.sender,
+        updatedAt: now,
+      });
+    }
+  }
+);
+
+export const selectInterviewQuestion = spacetimedb.reducer(
+  { roomId: t.u64(), questionId: t.string(), starterCode: t.string() },
+  (ctx, { roomId, questionId, starterCode }) => {
+    requireParticipant(ctx, roomId, ['interviewer', 'observer']);
+    const room = findRoom(ctx, roomId);
+    if (!room) throw new SenderError('Room not found');
+    ctx.db.room.id.update({ ...room, selectedQuestionId: questionId });
+
+    const now = ctx.timestamp.microsSinceUnixEpoch;
+    const existing = ctx.db.document.roomId.find(roomId);
+    if (existing) {
+      ctx.db.document.roomId.update({
+        ...existing,
+        content: starterCode,
+        updatedBy: ctx.sender,
+        updatedAt: now,
+      });
+    } else {
+      ctx.db.document.insert({
+        roomId,
+        content: starterCode,
+        language: 'javascript',
+        updatedBy: ctx.sender,
+        updatedAt: now,
+      });
+    }
+
     for (const r of ctx.db.runOutput.iter()) {
       if (r.roomId === roomId) ctx.db.runOutput.id.delete(r.id);
     }
