@@ -34,6 +34,8 @@ export interface UseVideoCallReturn {
 const ROLE_ORDER: Record<string, number> = {
   interviewer: 0,
   candidate: 1,
+  host: 0,
+  member: 1,
   observer: 2,
 }
 

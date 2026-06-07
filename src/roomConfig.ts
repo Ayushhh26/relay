@@ -1,6 +1,17 @@
 export const VALID_ROLES = ['candidate', 'interviewer', 'observer'] as const
 export type RoomRole = (typeof VALID_ROLES)[number]
 
+export const STUDY_ROLES = ['host', 'member'] as const
+export type StudyRole = (typeof STUDY_ROLES)[number]
+
+export function isStudyRoom(kind?: string): boolean {
+  return kind === 'study'
+}
+
+export function validRolesForKind(kind?: string): string[] {
+  return isStudyRoom(kind) ? [...STUDY_ROLES] : [...VALID_ROLES]
+}
+
 const PRESENCE_STALE_MICROS = 35_000_000n
 
 export function isPresentParticipant(
@@ -16,5 +27,7 @@ export function roleLabel(role: string): string {
   if (role === 'candidate') return 'Candidate'
   if (role === 'interviewer') return 'Interviewer'
   if (role === 'observer') return 'Observer'
+  if (role === 'host') return 'Host'
+  if (role === 'member') return 'Member'
   return role
 }

@@ -117,12 +117,19 @@ function requireParticipant(ctx: any, roomId: bigint, allowedRoles: string[]) {
   if (!allowedRoles.includes(p.role)) throw new SenderError('Insufficient role');
 }
 
+function validRolesForKind(kind: string): string[] {
+  return kind === 'study'
+    ? ['host', 'member']
+    : ['candidate', 'interviewer', 'observer'];
+}
+
 function canEdit(ctx: any, roomId: bigint): boolean {
   const room = findRoom(ctx, roomId);
   const p = findActiveParticipant(ctx, roomId, ctx.sender);
   if (!p || !room) return false;
   const kind = room.kind || 'interview';
-  return kind === 'interview' ? p.role === 'candidate' : false;
+  if (kind === 'study') return true;  // any active participant
+  return p.role === 'candidate';      // interview: candidate only
 }
 
 // ── Video helpers ──────────────────────────────────────────────────────────
@@ -224,11 +231,12 @@ export const joinRoom = spacetimedb.reducer(
     const room = findRoom(ctx, roomId);
     if (!room) throw new SenderError('Room not found');
 
-    const validRoles = ['candidate', 'interviewer', 'observer'];
-    if (!validRoles.includes(role)) throw new SenderError(`Invalid role: ${role}`);
+    const roomKind = room.kind || 'interview';
+    if (!validRolesForKind(roomKind).includes(role))
+      throw new SenderError(`Invalid role: ${role}`);
 
-    // One active candidate per room
-    if (role === 'candidate') {
+    // One active candidate per room — interview only
+    if (roomKind === 'interview' && role === 'candidate') {
       for (const p of ctx.db.participant.iter()) {
         if (
           p.roomId === roomId && p.active && p.role === 'candidate' &&
@@ -312,7 +320,9 @@ export const finalizeAssistLog = spacetimedb.reducer(
     policyStatus: t.string(),
   },
   (ctx, args) => {
-    requireParticipant(ctx, args.roomId, ['candidate']);
+    const r = findRoom(ctx, args.roomId);
+    const allowed = r?.kind === 'study' ? ['host', 'member'] : ['candidate'];
+    requireParticipant(ctx, args.roomId, allowed);
     ctx.db.assistLog.insert({
       id: 0n,
       roomId: args.roomId,
@@ -330,7 +340,9 @@ export const finalizeAssistLog = spacetimedb.reducer(
 export const appendRunOutput = spacetimedb.reducer(
   { roomId: t.u64(), seq: t.u64(), stream: t.string(), text: t.string() },
   (ctx, { roomId, seq, stream, text }) => {
-    requireParticipant(ctx, roomId, ['candidate']);
+    const r = findRoom(ctx, roomId);
+    const allowed = r?.kind === 'study' ? ['host', 'member'] : ['candidate'];
+    requireParticipant(ctx, roomId, allowed);
     ctx.db.runOutput.insert({ id: 0n, roomId, seq, stream, text, ts: ctx.timestamp.microsSinceUnixEpoch });
   }
 );
@@ -338,7 +350,9 @@ export const appendRunOutput = spacetimedb.reducer(
 export const clearRunOutput = spacetimedb.reducer(
   { roomId: t.u64() },
   (ctx, { roomId }) => {
-    requireParticipant(ctx, roomId, ['candidate']);
+    const r = findRoom(ctx, roomId);
+    const allowed = r?.kind === 'study' ? ['host', 'member'] : ['candidate'];
+    requireParticipant(ctx, roomId, allowed);
     for (const r of ctx.db.runOutput.iter()) {
       if (r.roomId === roomId) ctx.db.runOutput.id.delete(r.id);
     }
@@ -348,7 +362,9 @@ export const clearRunOutput = spacetimedb.reducer(
 export const setRoomPolicy = spacetimedb.reducer(
   { roomId: t.u64(), policy: t.string() },
   (ctx, { roomId, policy }) => {
-    requireParticipant(ctx, roomId, ['interviewer']);
+    const r = findRoom(ctx, roomId);
+    const allowed = r?.kind === 'study' ? ['host'] : ['interviewer'];
+    requireParticipant(ctx, roomId, allowed);
     const room = findRoom(ctx, roomId);
     if (!room) throw new SenderError('Room not found');
     ctx.db.room.id.update({ ...room, policy });
