@@ -13,13 +13,9 @@ import {
 export default __t.row({
   id: __t.u64().primaryKey(),
   roomId: __t.u64().name("room_id"),
-  identity: __t.identity(),
-  displayName: __t.string().name("display_name"),
-  role: __t.string(),
-  active: __t.bool(),
-  joinedAt: __t.u64().name("joined_at"),
-  muted: __t.bool(),
-  videoOff: __t.bool().name("video_off"),
-  lastSeenAt: __t.u64().name("last_seen_at"),
-  audioLevel: __t.u8().name("audio_level"),
+  fromIdentity: __t.identity().name("from_identity"),
+  toIdentity: __t.identity().name("to_identity"),
+  msgType: __t.string().name("msg_type"),
+  payload: __t.string(),
+  createdAt: __t.u64().name("created_at"),
 });

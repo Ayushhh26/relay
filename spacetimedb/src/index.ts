@@ -34,6 +34,11 @@ const participant = table(
     role: t.string(),
     active: t.bool(),
     joinedAt: t.u64().default(0n),
+    // Video columns — appended with .default() for safe additive migration
+    muted: t.bool().default(false),
+    videoOff: t.bool().default(false),
+    lastSeenAt: t.u64().default(0n),
+    audioLevel: t.u8().default(0),
   }
 );
 
@@ -73,9 +78,22 @@ const runOutput = table(
   }
 );
 
+const signalingMessage = table(
+  { name: 'signaling_message', public: true },
+  {
+    id: t.u64().primaryKey().autoInc(),
+    roomId: t.u64(),
+    fromIdentity: t.identity(),
+    toIdentity: t.identity(),
+    msgType: t.string(),
+    payload: t.string(),
+    createdAt: t.u64(),
+  }
+);
+
 // ── Schema ────────────────────────────────────────────────────────────────
 
-const spacetimedb = schema({ room, document, participant, user, assistLog, runOutput });
+const spacetimedb = schema({ room, document, participant, user, assistLog, runOutput, signalingMessage });
 export default spacetimedb;
 
 // ── Permission helpers ─────────────────────────────────────────────────────
@@ -107,6 +125,30 @@ function canEdit(ctx: any, roomId: bigint): boolean {
   return kind === 'interview' ? p.role === 'candidate' : false;
 }
 
+// ── Video helpers ──────────────────────────────────────────────────────────
+
+const HEARTBEAT_STALE_MICROS = 30_000_000n;
+
+function deactivateStaleParticipants(ctx: any, roomId: bigint, now: bigint) {
+  const senderHex = ctx.sender.toHexString();
+  for (const p of ctx.db.participant.iter()) {
+    if (p.roomId !== roomId || !p.active) continue;
+    if (p.identity.toHexString() === senderHex) continue;
+    const last: bigint = p.lastSeenAt ?? 0n;
+    if ((last > 0n && now - last > HEARTBEAT_STALE_MICROS) || last === 0n) {
+      ctx.db.participant.id.update({ ...p, active: false });
+    }
+  }
+}
+
+function isActiveParticipant(ctx: any, roomId: bigint): boolean {
+  for (const p of ctx.db.participant.iter()) {
+    if (p.roomId === roomId && p.active &&
+        p.identity.toHexString() === ctx.sender.toHexString()) return true;
+  }
+  return false;
+}
+
 // ── Lifecycle ─────────────────────────────────────────────────────────────
 
 export const init = spacetimedb.init((_ctx) => {});
@@ -123,8 +165,6 @@ export const onConnect = spacetimedb.clientConnected((ctx) => {
 
   if (jwt != null) {
     const issuer: string = (jwt as any).issuer ?? '';
-    // Local dev / anonymous tokens may carry a non-OIDC issuer — allow those for CI.
-    // Only reject tokens that claim to be SpacetimeAuth but use a wrong issuer path.
     if (issuer.startsWith('https://auth.spacetimedb.com/') && issuer !== SPACETIMEDB_OIDC_ISSUER) {
       throw new SenderError('Invalid token issuer');
     }
@@ -178,6 +218,9 @@ export const createRoom = spacetimedb.reducer(
 export const joinRoom = spacetimedb.reducer(
   { roomId: t.u64(), displayName: t.string(), role: t.string() },
   (ctx, { roomId, displayName, role }) => {
+    const now = ctx.timestamp.microsSinceUnixEpoch;
+    deactivateStaleParticipants(ctx, roomId, now);
+
     const room = findRoom(ctx, roomId);
     if (!room) throw new SenderError('Room not found');
 
@@ -208,7 +251,7 @@ export const joinRoom = spacetimedb.reducer(
     if (existingUser) {
       ctx.db.user.identity.update({ ...existingUser, displayName });
     } else {
-      ctx.db.user.insert({ identity: ctx.sender, displayName, createdAt: ctx.timestamp.microsSinceUnixEpoch });
+      ctx.db.user.insert({ identity: ctx.sender, displayName, createdAt: now });
     }
 
     ctx.db.participant.insert({
@@ -218,7 +261,11 @@ export const joinRoom = spacetimedb.reducer(
       displayName,
       role,
       active: true,
-      joinedAt: ctx.timestamp.microsSinceUnixEpoch,
+      joinedAt: now,
+      muted: false,
+      videoOff: false,
+      lastSeenAt: now,
+      audioLevel: 0,
     });
 
     if (!ctx.db.document.roomId.find(roomId)) {
@@ -226,7 +273,7 @@ export const joinRoom = spacetimedb.reducer(
         roomId,
         content: '',
         updatedBy: ctx.sender,
-        updatedAt: ctx.timestamp.microsSinceUnixEpoch,
+        updatedAt: now,
       });
     }
   }
@@ -305,5 +352,77 @@ export const setRoomPolicy = spacetimedb.reducer(
     const room = findRoom(ctx, roomId);
     if (!room) throw new SenderError('Room not found');
     ctx.db.room.id.update({ ...room, policy });
+  }
+);
+
+export const heartbeat = spacetimedb.reducer(
+  { roomId: t.u64() },
+  (ctx, { roomId }) => {
+    const now = ctx.timestamp.microsSinceUnixEpoch;
+    deactivateStaleParticipants(ctx, roomId, now);
+    for (const p of ctx.db.participant.iter()) {
+      if (p.roomId === roomId && p.active &&
+          p.identity.toHexString() === ctx.sender.toHexString()) {
+        ctx.db.participant.id.update({ ...p, lastSeenAt: now });
+        return;
+      }
+    }
+  }
+);
+
+export const leaveRoom = spacetimedb.reducer(
+  { roomId: t.u64() },
+  (ctx, { roomId }) => {
+    for (const p of ctx.db.participant.iter()) {
+      if (p.roomId === roomId && p.active &&
+          p.identity.toHexString() === ctx.sender.toHexString()) {
+        ctx.db.participant.id.update({ ...p, active: false });
+        return;
+      }
+    }
+  }
+);
+
+export const sendSignal = spacetimedb.reducer(
+  { roomId: t.u64(), toIdentity: t.identity(), msgType: t.string(), payload: t.string() },
+  (ctx, { roomId, toIdentity, msgType, payload }) => {
+    if (!isActiveParticipant(ctx, roomId)) return;
+    if (!['offer', 'answer', 'ice'].includes(msgType)) return;
+    ctx.db.signalingMessage.insert({
+      id: 0n,
+      roomId,
+      fromIdentity: ctx.sender,
+      toIdentity,
+      msgType,
+      payload,
+      createdAt: ctx.timestamp.microsSinceUnixEpoch,
+    });
+  }
+);
+
+export const deleteSignal = spacetimedb.reducer(
+  { signalId: t.u64() },
+  (ctx, { signalId }) => {
+    const row = ctx.db.signalingMessage.id.find(signalId);
+    if (!row) return;
+    if (row.toIdentity.toHexString() !== ctx.sender.toHexString()) return;
+    ctx.db.signalingMessage.id.delete(signalId);
+  }
+);
+
+export const updateMediaState = spacetimedb.reducer(
+  { roomId: t.u64(), muted: t.bool(), videoOff: t.bool(), audioLevel: t.u8() },
+  (ctx, { roomId, muted, videoOff, audioLevel }) => {
+    if (!isActiveParticipant(ctx, roomId)) return;
+    for (const p of ctx.db.participant.iter()) {
+      if (p.roomId === roomId && p.active &&
+          p.identity.toHexString() === ctx.sender.toHexString()) {
+        ctx.db.participant.id.update({
+          ...p, muted, videoOff,
+          audioLevel: muted ? 0 : audioLevel,
+        });
+        return;
+      }
+    }
   }
 );
