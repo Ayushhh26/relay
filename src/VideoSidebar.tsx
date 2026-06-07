@@ -1,6 +1,34 @@
 import { useLayoutEffect, useRef, type CSSProperties } from 'react'
 import { isActiveVideoTrack, type UseVideoCallReturn, type VideoParticipant } from './useVideoCall'
 
+function liveAudioTracks(stream: MediaStream | null | undefined, participantMuted: boolean) {
+  if (participantMuted || !stream) return []
+  return stream.getAudioTracks().filter(t => t.readyState === 'live' && !t.muted)
+}
+
+function AudioLevelBars({ level, active }: { level: number; active: boolean }) {
+  const bars = 4
+  return (
+    <div data-testid="audio-level" style={styles.audioMeter} aria-hidden>
+      {Array.from({ length: bars }, (_, i) => {
+        const threshold = (i + 1) / bars
+        const on = active && level >= threshold * 0.35
+        return (
+          <span
+            key={i}
+            style={{
+              ...styles.audioBar,
+              height: 4 + i * 2,
+              background: on ? '#22c55e' : '#334155',
+              opacity: on ? 1 : 0.55,
+            }}
+          />
+        )
+      })}
+    </div>
+  )
+}
+
 const ROLE_COLOR: Record<string, string> = {
   candidate: '#4ade80',
   interviewer: '#60a5fa',
@@ -50,6 +78,8 @@ function VideoIcon({ off }: { off: boolean }) {
 
 function ParticipantTile({ participant }: { participant: VideoParticipant }) {
   const videoRef = useRef<HTMLVideoElement>(null)
+  const level = participant.audioLevel
+  const speaking = !participant.muted && level > 0.06
 
   useLayoutEffect(() => {
     const el = videoRef.current
@@ -66,19 +96,24 @@ function ParticipantTile({ participant }: { participant: VideoParticipant }) {
       return
     }
 
-    const tracks = participant.stream?.getVideoTracks() ?? []
-    const live = tracks.filter(t => isActiveVideoTrack(t) && !participant.videoOff)
-    if (live.length === 0) {
+    const audioTracks = liveAudioTracks(participant.stream, participant.muted)
+    const videoTracks = (participant.stream?.getVideoTracks() ?? []).filter(
+      t => isActiveVideoTrack(t) && !participant.videoOff,
+    )
+
+    if (audioTracks.length === 0 && videoTracks.length === 0) {
       el.srcObject = null
       return
     }
-    el.srcObject = new MediaStream(live)
+
+    el.srcObject = new MediaStream([...audioTracks, ...videoTracks])
     void el.play().catch(() => {})
   }, [
     participant.isLocal,
     participant.localTrack,
     participant.stream,
     participant.videoOff,
+    participant.muted,
     participant.streamKey,
   ])
 
@@ -103,7 +138,13 @@ function ParticipantTile({ participant }: { participant: VideoParticipant }) {
     : `video-tile-${participant.role}`
 
   return (
-    <div data-testid={testId} style={styles.tile}>
+    <div
+      data-testid={testId}
+      style={{
+        ...styles.tile,
+        boxShadow: speaking ? '0 0 0 2px #22c55e88' : undefined,
+      }}
+    >
       <video
         ref={videoRef}
         autoPlay
@@ -111,7 +152,10 @@ function ParticipantTile({ participant }: { participant: VideoParticipant }) {
         muted={participant.isLocal}
         style={{
           ...styles.video,
-          display: showVideo ? 'block' : 'none',
+          display: showVideo || (!participant.isLocal && liveAudioTracks(participant.stream, participant.muted).length > 0)
+            ? 'block'
+            : 'none',
+          visibility: showVideo ? 'visible' : 'hidden',
           transform: participant.isLocal ? 'scaleX(-1)' : undefined,
         }}
       />
@@ -128,8 +172,7 @@ function ParticipantTile({ participant }: { participant: VideoParticipant }) {
           )}
         </span>
         <div style={styles.statusIcons}>
-          {participant.muted && <span style={{ color: '#f87171' }}><MicIcon muted /></span>}
-          {participant.videoOff && <span style={{ color: '#facc15' }}><VideoIcon off /></span>}
+          {!participant.muted && <AudioLevelBars level={level} active />}
         </div>
       </div>
     </div>
@@ -149,7 +192,10 @@ export function VideoSidebar({ call }: Props) {
     isVideoReady,
     toggleMute,
     toggleVideo,
+    localAudioLevel,
   } = call
+
+  const speaking = !isMuted && localAudioLevel > 0.06
 
   return (
     <aside data-testid="video-sidebar" style={styles.sidebar}>
@@ -174,12 +220,18 @@ export function VideoSidebar({ call }: Props) {
           onClick={toggleMute}
           style={{
             ...styles.controlBtn,
-            borderColor: isMuted ? '#f87171' : '#333',
+            borderColor: isMuted ? '#f87171' : speaking ? '#22c55e' : '#333',
             color: isMuted ? '#f87171' : '#e2e8f0',
           }}
           title={isMuted ? 'Unmute' : 'Mute'}
         >
-          <MicIcon muted={isMuted} />
+          {isMuted ? (
+            <MicIcon muted />
+          ) : speaking ? (
+            <AudioLevelBars level={localAudioLevel} active />
+          ) : (
+            <MicIcon muted={false} />
+          )}
         </button>
         <button
           type="button"
@@ -294,6 +346,19 @@ const styles: Record<string, CSSProperties> = {
   statusIcons: {
     display: 'flex',
     gap: 2,
+    alignItems: 'flex-end',
+  },
+  audioMeter: {
+    display: 'flex',
+    alignItems: 'flex-end',
+    gap: 1,
+    height: 12,
+    marginRight: 2,
+  },
+  audioBar: {
+    width: 2,
+    borderRadius: 1,
+    display: 'inline-block',
   },
   controls: {
     display: 'flex',

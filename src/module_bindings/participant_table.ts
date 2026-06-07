@@ -20,4 +20,5 @@ export default __t.row({
   muted: __t.bool(),
   videoOff: __t.bool().name("video_off"),
   lastSeenAt: __t.u64().name("last_seen_at"),
+  audioLevel: __t.u8().name("audio_level"),
 });

@@ -14,4 +14,5 @@ export default {
   roomId: __t.u64(),
   muted: __t.bool(),
   videoOff: __t.bool(),
+  audioLevel: __t.u8(),
 };

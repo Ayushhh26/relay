@@ -34,6 +34,7 @@ const participant = table(
     muted: t.bool(),
     videoOff: t.bool(),
     lastSeenAt: t.u64().default(0n),
+    audioLevel: t.u8().default(0),
   }
 );
 
@@ -233,6 +234,7 @@ export const joinRoom = spacetimedb.reducer(
       muted: false,
       videoOff: false,
       lastSeenAt: now,
+      audioLevel: 0,
     });
 
     // Seed document row for this room if it doesn't exist yet
@@ -311,8 +313,8 @@ export const leaveRoom = spacetimedb.reducer(
 );
 
 export const updateMediaState = spacetimedb.reducer(
-  { roomId: t.u64(), muted: t.bool(), videoOff: t.bool() },
-  (ctx, { roomId, muted, videoOff }) => {
+  { roomId: t.u64(), muted: t.bool(), videoOff: t.bool(), audioLevel: t.u8() },
+  (ctx, { roomId, muted, videoOff, audioLevel }) => {
     if (!isActiveParticipant(ctx, roomId)) return;
 
     for (const p of ctx.db.participant.iter()) {
@@ -321,7 +323,7 @@ export const updateMediaState = spacetimedb.reducer(
         p.active &&
         p.identity.toHexString() === ctx.sender.toHexString()
       ) {
-        ctx.db.participant.id.update({ ...p, muted, videoOff });
+        ctx.db.participant.id.update({ ...p, muted, videoOff, audioLevel: muted ? 0 : audioLevel });
         return;
       }
     }

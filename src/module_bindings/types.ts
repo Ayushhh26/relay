@@ -41,6 +41,7 @@ export const Participant = __t.object("Participant", {
   muted: __t.bool(),
   videoOff: __t.bool(),
   lastSeenAt: __t.u64(),
+  audioLevel: __t.u8(),
 });
 export type Participant = __Infer<typeof Participant>;
 

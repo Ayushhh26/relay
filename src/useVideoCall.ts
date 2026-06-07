@@ -5,6 +5,7 @@ import { reducers, tables } from './module_bindings'
 import type { SignalingMessage } from './module_bindings/types'
 import { ICE_SERVERS } from './videoConfig'
 import { isPresentParticipant } from './roomConfig'
+import { useAudioLevel } from './useAudioLevel'
 
 export interface VideoParticipant {
   identity: string
@@ -13,6 +14,7 @@ export interface VideoParticipant {
   stream: MediaStream | null
   localTrack: MediaStreamTrack | null
   streamKey: string
+  audioLevel: number
   muted: boolean
   videoOff: boolean
   isLocal: boolean
@@ -26,6 +28,7 @@ export interface UseVideoCallReturn {
   isVideoReady: boolean
   toggleMute: () => void
   toggleVideo: () => void
+  localAudioLevel: number
 }
 
 const ROLE_ORDER: Record<string, number> = {
@@ -94,6 +97,8 @@ export function useVideoCall({ roomId, enabled, localRole }: UseVideoCallProps):
   const localTrackIdsRef = useRef<Set<string>>(new Set())
   const isVideoOffRef = useRef(false)
   const remoteStreamsRef = useRef<Map<string, MediaStream>>(new Map())
+  const lastAudioLevelSent = useRef(-1)
+  const liveLocalLevelRef = useRef(0)
 
   const myHex = identity?.toHexString() ?? null
 
@@ -149,7 +154,6 @@ export function useVideoCall({ roomId, enabled, localRole }: UseVideoCallProps):
 
   const attachRemoteTrackListeners = useCallback(
     (peerId: string, track: MediaStreamTrack) => {
-      if (track.kind !== 'video') return
       const refresh = () => bumpRemoteMedia(peerId)
       track.addEventListener('mute', refresh)
       track.addEventListener('unmute', refresh)
@@ -196,6 +200,17 @@ export function useVideoCall({ roomId, enabled, localRole }: UseVideoCallProps):
     [roomId, sendSignal],
   )
 
+  const replaceAudioTrackOnPeers = useCallback(async (track: MediaStreamTrack | null) => {
+    for (const pc of peerConns.current.values()) {
+      const sender = pc.getSenders().find(s => s.track?.kind === 'audio')
+      if (sender) {
+        await sender.replaceTrack(track)
+      } else if (track && mediaStreamRef.current) {
+        pc.addTrack(track, mediaStreamRef.current)
+      }
+    }
+  }, [])
+
   const replaceVideoTrackOnPeers = useCallback(async (track: MediaStreamTrack | null) => {
     for (const pc of peerConns.current.values()) {
       const sender = pc.getSenders().find(s => s.track?.kind === 'video')
@@ -233,9 +248,7 @@ export function useVideoCall({ roomId, enabled, localRole }: UseVideoCallProps):
         if (!remoteStream.getTracks().some(t => t.id === track.id)) {
           remoteStream.addTrack(track)
         }
-        if (track.kind === 'video') {
-          attachRemoteTrackListeners(peerId, track)
-        }
+        attachRemoteTrackListeners(peerId, track)
         setRemoteStream(peerId, remoteStream)
       }
 
@@ -269,9 +282,10 @@ export function useVideoCall({ roomId, enabled, localRole }: UseVideoCallProps):
 
       const remote = remoteStreamsRef.current.get(peerId)
       const hasRemoteVideo = remote?.getVideoTracks().some(isActiveVideoTrack) ?? false
+      const hasRemoteAudio = remote?.getAudioTracks().some(t => t.readyState === 'live' && !t.muted) ?? false
 
       if (pc.signalingState === 'stable') {
-        if (hasRemoteVideo) return
+        if (hasRemoteVideo && hasRemoteAudio) return
       } else if (pc.localDescription && pc.signalingState !== 'have-local-offer') {
         return
       } else if (pc.localDescription && pc.signalingState === 'have-local-offer') {
@@ -350,9 +364,10 @@ export function useVideoCall({ roomId, enabled, localRole }: UseVideoCallProps):
         const state = pc?.connectionState
         const remote = remoteStreamsRef.current.get(peerId)
         const hasRemoteVideo = remote?.getVideoTracks().some(isActiveVideoTrack) ?? false
+        const hasRemoteAudio = remote?.getAudioTracks().some(t => t.readyState === 'live' && !t.muted) ?? false
         if (!state || state === 'new' || state === 'failed' || state === 'disconnected') {
           void callPeer(peerId, peer.identity)
-        } else if (state === 'connected' && !hasRemoteVideo) {
+        } else if (state === 'connected' && (!hasRemoteVideo || !hasRemoteAudio)) {
           void callPeer(peerId, peer.identity)
         }
       }
@@ -504,6 +519,34 @@ export function useVideoCall({ roomId, enabled, localRole }: UseVideoCallProps):
     return mediaStreamRef.current?.getVideoTracks().find(t => t.readyState === 'live') ?? null
   }, [isVideoOff, localVideoTrack, mediaEpoch])
 
+  const localAudioTrack = useMemo(() => {
+    const track = audioTrackRef.current ?? mediaStreamRef.current?.getAudioTracks()[0] ?? null
+    if (!track || track.readyState !== 'live') return null
+    return track
+  }, [isVideoReady, mediaEpoch, isMuted])
+
+  const liveLocalLevel = useAudioLevel(localAudioTrack, !isMuted)
+  liveLocalLevelRef.current = liveLocalLevel
+
+  const syncAudioLevelByte = useCallback(() => {
+    if (isMuted) return 0
+    return Math.min(100, Math.round(liveLocalLevelRef.current * 100))
+  }, [isMuted])
+
+  useEffect(() => {
+    if (!enabled || !isActive) return
+
+    const byte = syncAudioLevelByte()
+    if (byte === lastAudioLevelSent.current) return
+
+    const timer = setTimeout(() => {
+      lastAudioLevelSent.current = byte
+      updateMediaState({ roomId, muted: isMuted, videoOff: isVideoOff, audioLevel: byte })
+    }, 120)
+
+    return () => clearTimeout(timer)
+  }, [liveLocalLevel, isMuted, isVideoOff, enabled, isActive, roomId, syncAudioLevelByte, updateMediaState])
+
   const allParticipants = useMemo<VideoParticipant[]>(() => {
     if (!myHex) return []
 
@@ -514,6 +557,7 @@ export function useVideoCall({ roomId, enabled, localRole }: UseVideoCallProps):
       stream: null,
       localTrack: previewTrack,
       streamKey: videoStreamKey(null, previewTrack),
+      audioLevel: liveLocalLevel,
       muted: isMuted,
       videoOff: isVideoOff,
       isLocal: true,
@@ -533,6 +577,7 @@ export function useVideoCall({ roomId, enabled, localRole }: UseVideoCallProps):
           stream,
           localTrack: null,
           streamKey: videoStreamKey(stream, null),
+          audioLevel: Number(p.audioLevel) / 100,
           muted: p.muted,
           videoOff: p.videoOff,
           isLocal: false,
@@ -540,7 +585,7 @@ export function useVideoCall({ roomId, enabled, localRole }: UseVideoCallProps):
       })
 
     return [localTile, ...remotes]
-  }, [roomPeers, myHex, remoteStreams, remoteMediaRevision, previewTrack, isMuted, isVideoOff, localRole])
+  }, [roomPeers, myHex, remoteStreams, remoteMediaRevision, previewTrack, liveLocalLevel, isMuted, isVideoOff, localRole])
 
   const toggleMute = useCallback(() => {
     const audio = audioTrackRef.current
@@ -548,15 +593,22 @@ export function useVideoCall({ roomId, enabled, localRole }: UseVideoCallProps):
     const next = !isMuted
     audio.enabled = !next
     setIsMuted(next)
-    updateMediaState({ roomId, muted: next, videoOff: isVideoOff })
-  }, [isMuted, isVideoOff, roomId, updateMediaState])
+    const audioLevel = next ? 0 : syncAudioLevelByte()
+    lastAudioLevelSent.current = audioLevel
+    updateMediaState({ roomId, muted: next, videoOff: isVideoOff, audioLevel })
+    void replaceAudioTrackOnPeers(next ? null : audio).catch(err => {
+      console.error('Failed to update audio on peers:', err)
+    })
+  }, [isMuted, isVideoOff, roomId, replaceAudioTrackOnPeers, updateMediaState, syncAudioLevelByte])
 
   const toggleVideo = useCallback(async () => {
     try {
       if (!isVideoOff) {
         setIsVideoOff(true)
         isVideoOffRef.current = true
-        updateMediaState({ roomId, muted: isMuted, videoOff: true })
+        const audioLevel = syncAudioLevelByte()
+        lastAudioLevelSent.current = audioLevel
+        updateMediaState({ roomId, muted: isMuted, videoOff: true, audioLevel })
         stopLocalVideo()
         try {
           await replaceVideoTrackOnPeers(null)
@@ -584,7 +636,9 @@ export function useVideoCall({ roomId, enabled, localRole }: UseVideoCallProps):
       setLocalVideoTrack(videoTrack)
       setIsVideoOff(false)
       isVideoOffRef.current = false
-      updateMediaState({ roomId, muted: isMuted, videoOff: false })
+      const audioLevel = syncAudioLevelByte()
+      lastAudioLevelSent.current = audioLevel
+      updateMediaState({ roomId, muted: isMuted, videoOff: false, audioLevel })
 
       try {
         await replaceVideoTrackOnPeers(videoTrack)
@@ -594,7 +648,7 @@ export function useVideoCall({ roomId, enabled, localRole }: UseVideoCallProps):
     } catch (err) {
       setVideoError(err instanceof Error ? err.message : String(err))
     }
-  }, [isMuted, isVideoOff, registerLocalTrack, replaceVideoTrackOnPeers, roomId, stopLocalVideo, updateMediaState])
+  }, [isMuted, isVideoOff, registerLocalTrack, replaceVideoTrackOnPeers, roomId, stopLocalVideo, updateMediaState, syncAudioLevelByte])
 
   return {
     participants: allParticipants,
@@ -604,5 +658,6 @@ export function useVideoCall({ roomId, enabled, localRole }: UseVideoCallProps):
     isVideoReady,
     toggleMute,
     toggleVideo,
+    localAudioLevel: liveLocalLevel,
   }
 }
