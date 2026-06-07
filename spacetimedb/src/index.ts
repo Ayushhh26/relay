@@ -15,23 +15,42 @@ const room = table(
 const document = table(
   { name: 'document', public: true },
   {
-    roomId: t.u64().primaryKey(),   // one document per room
+    roomId: t.u64().primaryKey(),
     content: t.string(),
     updatedBy: t.identity(),
     updatedAt: t.u64(),
   }
 );
 
+const participant = table(
+  { name: 'participant', public: true },
+  {
+    id: t.u64().primaryKey().autoInc(),
+    roomId: t.u64(),
+    identity: t.identity(),
+    displayName: t.string(),
+    role: t.string(),
+    active: t.bool(),
+  }
+);
+
 // ── Schema ────────────────────────────────────────────────────────────────
 
-const spacetimedb = schema({ room, document });
+const spacetimedb = schema({ room, document, participant });
 export default spacetimedb;
 
 // ── Lifecycle ─────────────────────────────────────────────────────────────
 
 export const init = spacetimedb.init((_ctx) => {});
 export const onConnect = spacetimedb.clientConnected((_ctx) => {});
-export const onDisconnect = spacetimedb.clientDisconnected((_ctx) => {});
+
+export const onDisconnect = spacetimedb.clientDisconnected((ctx) => {
+  for (const p of ctx.db.participant.iter()) {
+    if (p.identity.toHexString() === ctx.sender.toHexString() && p.active) {
+      ctx.db.participant.id.update({ ...p, active: false });
+    }
+  }
+});
 
 // ── Reducers ──────────────────────────────────────────────────────────────
 
@@ -65,6 +84,36 @@ export const updateDocument = spacetimedb.reducer(
       ctx.db.document.insert({
         roomId,
         content,
+        updatedBy: ctx.sender,
+        updatedAt: ctx.timestamp.microsSinceUnixEpoch,
+      });
+    }
+  }
+);
+
+export const joinRoom = spacetimedb.reducer(
+  { roomId: t.u64(), displayName: t.string(), role: t.string() },
+  (ctx, { roomId, displayName, role }) => {
+    // Remove any stale entries for this identity in this room
+    for (const p of ctx.db.participant.iter()) {
+      if (p.identity.toHexString() === ctx.sender.toHexString() && p.roomId === roomId) {
+        ctx.db.participant.id.delete(p.id);
+      }
+    }
+    ctx.db.participant.insert({
+      id: 0n,
+      roomId,
+      identity: ctx.sender,
+      displayName,
+      role,
+      active: true,
+    });
+
+    // Seed document row for this room if it doesn't exist yet
+    if (!ctx.db.document.roomId.find(roomId)) {
+      ctx.db.document.insert({
+        roomId,
+        content: '',
         updatedBy: ctx.sender,
         updatedAt: ctx.timestamp.microsSinceUnixEpoch,
       });

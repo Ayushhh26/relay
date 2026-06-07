@@ -18,6 +18,16 @@ export const Document = __t.object("Document", {
 });
 export type Document = __Infer<typeof Document>;
 
+export const Participant = __t.object("Participant", {
+  id: __t.u64(),
+  roomId: __t.u64(),
+  identity: __t.identity(),
+  displayName: __t.string(),
+  role: __t.string(),
+  active: __t.bool(),
+});
+export type Participant = __Infer<typeof Participant>;
+
 export const Room = __t.object("Room", {
   id: __t.u64(),
   title: __t.string(),
