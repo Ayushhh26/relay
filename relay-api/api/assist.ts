@@ -1,8 +1,11 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import Anthropic from '@anthropic-ai/sdk'
+import OpenAI from 'openai'
 import { classifyPrompt } from '../src/classifyPrompt'
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+const client = new OpenAI({
+  apiKey: process.env.NVIDIA_API_KEY,
+  baseURL: 'https://integrate.api.nvidia.com/v1',
+})
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Origin', '*')
@@ -23,14 +26,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       ? 'You are a helpful coding assistant. Keep answers focused on syntax and brief examples only.'
       : 'You are a helpful coding assistant. Keep answers focused and educational.'
 
-  const message = await client.messages.create({
-    model: 'claude-haiku-4-5-20251001',
+  const completion = await client.chat.completions.create({
+    model: 'meta/llama-3.3-70b-instruct',
     max_tokens: 300,
-    system: systemPrompt,
-    messages: [{ role: 'user', content: prompt }],
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: prompt },
+    ],
   })
 
-  const responseText = message.content[0].type === 'text' ? message.content[0].text : ''
+  const responseText = completion.choices[0]?.message?.content ?? ''
   const assistType = shouldDowngrade ? 'syntax' : requestedType
   const policyStatus = shouldDowngrade ? 'downgraded' : 'allowed'
 
