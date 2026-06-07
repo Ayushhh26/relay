@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import { tables, reducers } from './module_bindings'
 import { useReducer, useTable } from 'spacetimedb/react'
 
@@ -22,30 +22,41 @@ export function AssistPanel({ roomId, policy }: Props) {
 
   const [prompt, setPrompt] = useState('')
   const [loading, setLoading] = useState(false)
+  const [apiError, setApiError] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
+
+  // Scroll to bottom whenever a new entry arrives via subscription
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [roomLogs.length])
 
   async function handleAsk() {
     if (!prompt.trim() || loading) return
+    const sent = prompt
     setLoading(true)
+    setApiError(null)
+    setPrompt('')
     try {
       const res = await fetch(`${API_URL}/api/assist`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt, policy }),
+        body: JSON.stringify({ prompt: sent, policy }),
       })
+      if (!res.ok) throw new Error(`API ${res.status}`)
       const { response, requestedType, assistType, policyStatus } = await res.json()
       finalizeAssistLog({
         roomId,
-        promptText: prompt,
+        promptText: sent,
         responseText: response,
         requestedType,
         assistType,
         policyStatus,
       })
-      setPrompt('')
+    } catch (err) {
+      setApiError(String(err))
+      setPrompt(sent)
     } finally {
       setLoading(false)
-      setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
     }
   }
 
@@ -81,6 +92,9 @@ export function AssistPanel({ roomId, policy }: Props) {
         <div ref={bottomRef} />
       </div>
 
+      {apiError && (
+        <div style={{ fontSize: 11, color: '#f87171', marginBottom: 4 }}>{apiError}</div>
+      )}
       <div style={{ display: 'flex', gap: 6 }}>
         <input
           data-testid="assist-input"
