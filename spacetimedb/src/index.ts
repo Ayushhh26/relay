@@ -36,7 +36,22 @@ const participant = table(
 
 // ── Schema ────────────────────────────────────────────────────────────────
 
-const spacetimedb = schema({ room, document, participant });
+const assistLog = table(
+  { name: 'assist_log', public: true },
+  {
+    id: t.u64().primaryKey().autoInc(),
+    roomId: t.u64(),
+    requestedBy: t.identity(),
+    promptText: t.string(),
+    responseText: t.string(),
+    requestedType: t.string(),
+    assistType: t.string(),
+    policyStatus: t.string(),
+    createdAt: t.u64(),
+  }
+);
+
+const spacetimedb = schema({ room, document, participant, assistLog });
 export default spacetimedb;
 
 // ── Lifecycle ─────────────────────────────────────────────────────────────
@@ -88,6 +103,30 @@ export const updateDocument = spacetimedb.reducer(
         updatedAt: ctx.timestamp.microsSinceUnixEpoch,
       });
     }
+  }
+);
+
+export const finalizeAssistLog = spacetimedb.reducer(
+  {
+    roomId: t.u64(),
+    promptText: t.string(),
+    responseText: t.string(),
+    requestedType: t.string(),
+    assistType: t.string(),
+    policyStatus: t.string(),
+  },
+  (ctx, args) => {
+    ctx.db.assistLog.insert({
+      id: 0n,
+      roomId: args.roomId,
+      requestedBy: ctx.sender,
+      promptText: args.promptText,
+      responseText: args.responseText,
+      requestedType: args.requestedType,
+      assistType: args.assistType,
+      policyStatus: args.policyStatus,
+      createdAt: ctx.timestamp.microsSinceUnixEpoch,
+    });
   }
 );
 
