@@ -4,14 +4,19 @@ import { useSpacetimeDB, useTable, useReducer } from 'spacetimedb/react'
 import { Editor } from './Editor'
 import { AssistPanel } from './AssistPanel'
 import { RunPanel } from './RunPanel'
-
-const params = new URLSearchParams(window.location.search)
-export const ROOM_ID = BigInt(params.get('room') ?? '1')
-export const ROLE = params.get('role') ?? 'observer'
-export const NAME = params.get('name') ?? ROLE
-export const POLICY = params.get('policy') ?? 'open'
-
-const IS_CANDIDATE = ROLE === 'candidate'
+import { QuestionPanel } from './QuestionPanel'
+import { ADD_TWO_NUMBERS } from './problem'
+import { useVideoCall } from './useVideoCall'
+import { VideoSidebar } from './VideoSidebar'
+import {
+  HAS_VALID_ROLE,
+  IS_CANDIDATE,
+  NAME,
+  POLICY,
+  ROLE,
+  ROOM_ID,
+  isPresentParticipant,
+} from './roomConfig'
 
 const DOT_COLOR: Record<string, string> = {
   candidate: '#4ade80',
@@ -24,6 +29,8 @@ function App() {
   const createRoom = useReducer(reducers.createRoom)
   const updateDocument = useReducer(reducers.updateDocument)
   const joinRoom = useReducer(reducers.joinRoom)
+  const heartbeat = useReducer(reducers.heartbeat)
+  const leaveRoom = useReducer(reducers.leaveRoom)
   const appendRunOutput = useReducer(reducers.appendRunOutput)
   const clearRunOutput = useReducer(reducers.clearRunOutput)
 
@@ -35,24 +42,45 @@ function App() {
 
   const currentRoom = rooms.find(r => r.id === ROOM_ID)
   const remoteDoc = docs.find(d => d.roomId === ROOM_ID)
-  const activeParticipants = participants.filter(p => p.roomId === ROOM_ID && p.active)
+  const activeParticipants = participants.filter(
+    p => p.roomId === ROOM_ID && isPresentParticipant(p),
+  )
 
   const [localContent, setLocalContent] = useState('')
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const hasPendingWrite = useRef(false)
   const hasJoined = useRef(false)
+  const hasSeededStarter = useRef(false)
 
   // Seed room on first connect
   if (isActive && roomsReady && rooms.length === 0) {
     createRoom({ title: 'Interview Room' })
   }
 
-  // Join room once on connect
+  // Join room once on connect (requires ?role=candidate|interviewer|observer in URL)
   useEffect(() => {
-    if (isActive && !hasJoined.current) {
+    if (isActive && HAS_VALID_ROLE && !hasJoined.current) {
       hasJoined.current = true
       joinRoom({ roomId: ROOM_ID, displayName: NAME, role: ROLE })
     }
+  }, [isActive])
+
+  // Keep presence alive and prune stale ghost participants (e.g. old observer tabs)
+  useEffect(() => {
+    if (!isActive) return
+    heartbeat({ roomId: ROOM_ID })
+    const id = window.setInterval(() => {
+      heartbeat({ roomId: ROOM_ID })
+    }, 10_000)
+    return () => window.clearInterval(id)
+  }, [isActive])
+
+  // Best-effort leave when tab closes
+  useEffect(() => {
+    if (!isActive) return
+    const onLeave = () => leaveRoom({ roomId: ROOM_ID })
+    window.addEventListener('pagehide', onLeave)
+    return () => window.removeEventListener('pagehide', onLeave)
   }, [isActive])
 
   // Sync remote document into local state (skip while candidate has a pending write)
@@ -61,6 +89,15 @@ function App() {
       setLocalContent(remoteDoc.content)
     }
   }, [remoteDoc?.content])
+
+  // Seed starter code for new rooms
+  useEffect(() => {
+    if (!isActive || !remoteDoc || hasSeededStarter.current) return
+    if (remoteDoc.content.trim() !== '') return
+    hasSeededStarter.current = true
+    updateDocument({ roomId: ROOM_ID, content: ADD_TWO_NUMBERS.starterCode })
+    setLocalContent(ADD_TWO_NUMBERS.starterCode)
+  }, [isActive, remoteDoc?.content])
 
   function handleRun() {
     clearRunOutput({ roomId: ROOM_ID })
@@ -75,7 +112,7 @@ function App() {
       if (error) appendRunOutput({ roomId: ROOM_ID, seq, stream: 'stderr', text: error })
       worker.terminate()
     }
-    worker.postMessage({ code: editorValue })
+    worker.postMessage({ code: editorValue, harness: ADD_TWO_NUMBERS.runHarness })
   }
 
   function handleChange(val: string) {
@@ -89,6 +126,29 @@ function App() {
   }
 
   const editorValue = IS_CANDIDATE ? localContent : (remoteDoc?.content ?? '')
+
+  const videoCall = useVideoCall({
+    roomId: ROOM_ID,
+    enabled: isActive && HAS_VALID_ROLE,
+    localRole: ROLE || 'candidate',
+  })
+
+  if (!HAS_VALID_ROLE) {
+    return (
+      <div style={{ padding: '2rem', fontFamily: 'sans-serif', color: '#e2e8f0', background: '#111', minHeight: '100vh' }}>
+        <h1 style={{ fontSize: 18 }}>Relay — pick a role</h1>
+        <p style={{ color: '#94a3b8', fontSize: 14, maxWidth: 420, lineHeight: 1.5 }}>
+          Open with a role in the URL. A bare <code style={{ color: '#fbbf24' }}>localhost:5173/</code> tab
+          used to join as observer and cause ghost video tiles.
+        </p>
+        <ul style={{ fontSize: 13, lineHeight: 2 }}>
+          <li><a href="/?room=1&role=interviewer&name=Bob" style={{ color: '#60a5fa' }}>Interviewer (Bob)</a></li>
+          <li><a href="/?room=1&role=candidate&name=Alice" style={{ color: '#4ade80' }}>Candidate (Alice)</a></li>
+          <li><a href="/?room=1&role=observer&name=Carol" style={{ color: '#a78bfa' }}>Observer (Carol)</a></li>
+        </ul>
+      </div>
+    )
+  }
 
   if (!isActive) {
     return (
@@ -128,9 +188,15 @@ function App() {
         ))}
       </div>
 
-      {/* Main area: editor+terminal left, assist panel right */}
+      {/* Main area: video + editor+terminal + assist panel */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+        <VideoSidebar call={videoCall} />
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <QuestionPanel
+            title={ADD_TWO_NUMBERS.title}
+            description={ADD_TWO_NUMBERS.description}
+            example={ADD_TWO_NUMBERS.example}
+          />
           {IS_CANDIDATE && (
             <div style={{ padding: '4px 8px', background: '#0d0d0d', borderBottom: '1px solid #1a1a1a' }}>
               <button
@@ -142,14 +208,14 @@ function App() {
               </button>
             </div>
           )}
-          <div style={{ flex: '0 0 60%', overflow: 'hidden' }}>
+          <div style={{ flex: '0 0 55%', overflow: 'hidden' }}>
             <Editor
               value={editorValue}
               onChange={IS_CANDIDATE ? handleChange : undefined}
               readOnly={!IS_CANDIDATE}
             />
           </div>
-          <div style={{ flex: '0 0 40%', borderTop: '1px solid #1a1a1a', overflow: 'hidden' }}>
+          <div style={{ flex: '0 0 35%', borderTop: '1px solid #1a1a1a', overflow: 'hidden' }}>
             <RunPanel outputs={roomOutputs} />
           </div>
         </div>

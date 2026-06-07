@@ -7,13 +7,14 @@ import './index.css';
 
 const HOST = import.meta.env.VITE_SPACETIMEDB_HOST ?? 'ws://localhost:3000';
 const DB_NAME = import.meta.env.VITE_SPACETIMEDB_DB_NAME ?? 'react-ts';
+// sessionStorage = one SpacetimeDB identity per browser tab (required for multi-tab demo)
 const TOKEN_KEY = `${HOST}/${DB_NAME}/auth_token`;
 
 const connectionBuilder = DbConnection.builder()
   .withUri(HOST)
   .withDatabaseName(DB_NAME)
-  .withToken(localStorage.getItem(TOKEN_KEY) || undefined)
-  .onConnect((_conn, _identity, token) => { localStorage.setItem(TOKEN_KEY, token); })
+  .withToken(sessionStorage.getItem(TOKEN_KEY) || undefined)
+  .onConnect((_conn, _identity, token) => { sessionStorage.setItem(TOKEN_KEY, token); })
   .onDisconnect(() => {})
   .onConnectError(() => {});
 

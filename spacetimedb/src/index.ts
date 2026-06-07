@@ -31,6 +31,41 @@ const participant = table(
     displayName: t.string(),
     role: t.string(),
     active: t.bool(),
+    muted: t.bool(),
+    videoOff: t.bool(),
+    lastSeenAt: t.u64().default(0n),
+  }
+);
+
+/** Drop participants who stopped heartbeating (e.g. closed tab without disconnect). */
+const HEARTBEAT_STALE_MICROS = 30_000_000n;
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function deactivateStaleParticipants(ctx: any, roomId: bigint, now: bigint) {
+  const senderHex = ctx.sender.toHexString();
+  for (const p of ctx.db.participant.iter()) {
+    if (p.roomId !== roomId || !p.active) continue;
+    if (p.identity.toHexString() === senderHex) continue;
+    const last = p.lastSeenAt ?? 0n;
+    if (last > 0n && now - last > HEARTBEAT_STALE_MICROS) {
+      ctx.db.participant.id.update({ ...p, active: false });
+    } else if (last === 0n) {
+      // Legacy rows from before lastSeenAt existed — treat as stale ghosts
+      ctx.db.participant.id.update({ ...p, active: false });
+    }
+  }
+}
+
+const signalingMessage = table(
+  { name: 'signaling_message', public: true },
+  {
+    id: t.u64().primaryKey().autoInc(),
+    roomId: t.u64(),
+    fromIdentity: t.identity(),
+    toIdentity: t.identity(),
+    msgType: t.string(),
+    payload: t.string(),
+    createdAt: t.u64(),
   }
 );
 
@@ -63,7 +98,7 @@ const runOutput = table(
   }
 );
 
-const spacetimedb = schema({ room, document, participant, assistLog, runOutput });
+const spacetimedb = schema({ room, document, participant, assistLog, runOutput, signalingMessage });
 export default spacetimedb;
 
 // ── Lifecycle ─────────────────────────────────────────────────────────────
@@ -78,6 +113,24 @@ export const onDisconnect = spacetimedb.clientDisconnected((ctx) => {
     }
   }
 });
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+
+function isActiveParticipant(
+  ctx: { db: { participant: { iter: () => Iterable<{ roomId: bigint; active: boolean; identity: { toHexString: () => string } }> } }; sender: { toHexString: () => string } },
+  roomId: bigint,
+) {
+  for (const p of ctx.db.participant.iter()) {
+    if (
+      p.roomId === roomId &&
+      p.active &&
+      p.identity.toHexString() === ctx.sender.toHexString()
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
 
 // ── Reducers ──────────────────────────────────────────────────────────────
 
@@ -161,6 +214,9 @@ export const clearRunOutput = spacetimedb.reducer(
 export const joinRoom = spacetimedb.reducer(
   { roomId: t.u64(), displayName: t.string(), role: t.string() },
   (ctx, { roomId, displayName, role }) => {
+    const now = ctx.timestamp.microsSinceUnixEpoch;
+    deactivateStaleParticipants(ctx, roomId, now);
+
     // Remove any stale entries for this identity in this room
     for (const p of ctx.db.participant.iter()) {
       if (p.identity.toHexString() === ctx.sender.toHexString() && p.roomId === roomId) {
@@ -174,6 +230,9 @@ export const joinRoom = spacetimedb.reducer(
       displayName,
       role,
       active: true,
+      muted: false,
+      videoOff: false,
+      lastSeenAt: now,
     });
 
     // Seed document row for this room if it doesn't exist yet
@@ -184,6 +243,87 @@ export const joinRoom = spacetimedb.reducer(
         updatedBy: ctx.sender,
         updatedAt: ctx.timestamp.microsSinceUnixEpoch,
       });
+    }
+  }
+);
+
+export const sendSignal = spacetimedb.reducer(
+  { roomId: t.u64(), toIdentity: t.identity(), msgType: t.string(), payload: t.string() },
+  (ctx, { roomId, toIdentity, msgType, payload }) => {
+    if (!isActiveParticipant(ctx, roomId)) return;
+    if (msgType !== 'offer' && msgType !== 'answer' && msgType !== 'ice') return;
+
+    ctx.db.signalingMessage.insert({
+      id: 0n,
+      roomId,
+      fromIdentity: ctx.sender,
+      toIdentity,
+      msgType,
+      payload,
+      createdAt: ctx.timestamp.microsSinceUnixEpoch,
+    });
+  }
+);
+
+export const deleteSignal = spacetimedb.reducer(
+  { signalId: t.u64() },
+  (ctx, { signalId }) => {
+    const row = ctx.db.signalingMessage.id.find(signalId);
+    if (!row) return;
+    if (row.toIdentity.toHexString() !== ctx.sender.toHexString()) return;
+    ctx.db.signalingMessage.id.delete(signalId);
+  }
+);
+
+export const heartbeat = spacetimedb.reducer(
+  { roomId: t.u64() },
+  (ctx, { roomId }) => {
+    const now = ctx.timestamp.microsSinceUnixEpoch;
+    deactivateStaleParticipants(ctx, roomId, now);
+
+    for (const p of ctx.db.participant.iter()) {
+      if (
+        p.roomId === roomId &&
+        p.active &&
+        p.identity.toHexString() === ctx.sender.toHexString()
+      ) {
+        ctx.db.participant.id.update({ ...p, lastSeenAt: now });
+        return;
+      }
+    }
+  }
+);
+
+export const leaveRoom = spacetimedb.reducer(
+  { roomId: t.u64() },
+  (ctx, { roomId }) => {
+    for (const p of ctx.db.participant.iter()) {
+      if (
+        p.roomId === roomId &&
+        p.active &&
+        p.identity.toHexString() === ctx.sender.toHexString()
+      ) {
+        ctx.db.participant.id.update({ ...p, active: false });
+        return;
+      }
+    }
+  }
+);
+
+export const updateMediaState = spacetimedb.reducer(
+  { roomId: t.u64(), muted: t.bool(), videoOff: t.bool() },
+  (ctx, { roomId, muted, videoOff }) => {
+    if (!isActiveParticipant(ctx, roomId)) return;
+
+    for (const p of ctx.db.participant.iter()) {
+      if (
+        p.roomId === roomId &&
+        p.active &&
+        p.identity.toHexString() === ctx.sender.toHexString()
+      ) {
+        ctx.db.participant.id.update({ ...p, muted, videoOff });
+        return;
+      }
     }
   }
 );

@@ -10,14 +10,9 @@ import {
   type Infer as __Infer,
 } from "spacetimedb";
 
-export default __t.row({
-  id: __t.u64().primaryKey(),
-  roomId: __t.u64().name("room_id"),
-  identity: __t.identity(),
-  displayName: __t.string().name("display_name"),
-  role: __t.string(),
-  active: __t.bool(),
-  muted: __t.bool(),
-  videoOff: __t.bool().name("video_off"),
-  lastSeenAt: __t.u64().name("last_seen_at"),
-});
+export default {
+  roomId: __t.u64(),
+  toIdentity: __t.identity(),
+  msgType: __t.string(),
+  payload: __t.string(),
+};

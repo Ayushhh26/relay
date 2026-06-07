@@ -37,9 +37,14 @@ import {
 import AppendRunOutputReducer from "./append_run_output_reducer";
 import ClearRunOutputReducer from "./clear_run_output_reducer";
 import CreateRoomReducer from "./create_room_reducer";
+import DeleteSignalReducer from "./delete_signal_reducer";
 import FinalizeAssistLogReducer from "./finalize_assist_log_reducer";
+import HeartbeatReducer from "./heartbeat_reducer";
 import JoinRoomReducer from "./join_room_reducer";
+import LeaveRoomReducer from "./leave_room_reducer";
+import SendSignalReducer from "./send_signal_reducer";
 import UpdateDocumentReducer from "./update_document_reducer";
+import UpdateMediaStateReducer from "./update_media_state_reducer";
 
 // Import all procedure arg schemas
 
@@ -49,6 +54,7 @@ import DocumentRow from "./document_table";
 import ParticipantRow from "./participant_table";
 import RoomRow from "./room_table";
 import RunOutputRow from "./run_output_table";
+import SignalingMessageRow from "./signaling_message_table";
 
 /** Type-only namespace exports for generated type groups. */
 
@@ -109,6 +115,17 @@ const tablesSchema = __schema({
       { name: 'run_output_id_key', constraint: 'unique', columns: ['id'] },
     ],
   }, RunOutputRow),
+  signalingMessage: __table({
+    name: 'signaling_message',
+    indexes: [
+      { accessor: 'id', name: 'signaling_message_id_idx_btree', algorithm: 'btree', columns: [
+        'id',
+      ] },
+    ],
+    constraints: [
+      { name: 'signaling_message_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, SignalingMessageRow),
 });
 
 /** The schema information for all reducers in this module. This is defined the same way as the reducers would have been defined in the server, except the body of the reducer is omitted in code generation. */
@@ -116,9 +133,14 @@ const reducersSchema = __reducers(
   __reducerSchema("append_run_output", AppendRunOutputReducer),
   __reducerSchema("clear_run_output", ClearRunOutputReducer),
   __reducerSchema("create_room", CreateRoomReducer),
+  __reducerSchema("delete_signal", DeleteSignalReducer),
   __reducerSchema("finalize_assist_log", FinalizeAssistLogReducer),
+  __reducerSchema("heartbeat", HeartbeatReducer),
   __reducerSchema("join_room", JoinRoomReducer),
+  __reducerSchema("leave_room", LeaveRoomReducer),
+  __reducerSchema("send_signal", SendSignalReducer),
   __reducerSchema("update_document", UpdateDocumentReducer),
+  __reducerSchema("update_media_state", UpdateMediaStateReducer),
 );
 
 /** The schema information for all procedures in this module. This is defined the same way as the procedures would have been defined in the server. */

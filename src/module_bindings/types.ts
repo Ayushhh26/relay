@@ -38,6 +38,9 @@ export const Participant = __t.object("Participant", {
   displayName: __t.string(),
   role: __t.string(),
   active: __t.bool(),
+  muted: __t.bool(),
+  videoOff: __t.bool(),
+  lastSeenAt: __t.u64(),
 });
 export type Participant = __Infer<typeof Participant>;
 
@@ -58,4 +61,15 @@ export const RunOutput = __t.object("RunOutput", {
   ts: __t.u64(),
 });
 export type RunOutput = __Infer<typeof RunOutput>;
+
+export const SignalingMessage = __t.object("SignalingMessage", {
+  id: __t.u64(),
+  roomId: __t.u64(),
+  fromIdentity: __t.identity(),
+  toIdentity: __t.identity(),
+  msgType: __t.string(),
+  payload: __t.string(),
+  createdAt: __t.u64(),
+});
+export type SignalingMessage = __Infer<typeof SignalingMessage>;
 
