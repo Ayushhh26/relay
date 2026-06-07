@@ -15,6 +15,18 @@
     "spacetime:publish": "spacetime publish relay-demo --server maincloud -y"
   },
   "dependencies": {
+    "@tiptap/extension-highlight": "^3.26.0",
+    "@tiptap/extension-link": "^3.26.0",
+    "@tiptap/extension-placeholder": "^3.26.0",
+    "@tiptap/extension-subscript": "^3.26.0",
+    "@tiptap/extension-superscript": "^3.26.0",
+    "@tiptap/extension-task-item": "^3.26.0",
+    "@tiptap/extension-task-list": "^3.26.0",
+    "@tiptap/extension-text-align": "^3.26.0",
+    "@tiptap/extension-underline": "^3.26.0",
+    "@tiptap/pm": "^3.26.0",
+    "@tiptap/react": "^3.26.0",
+    "@tiptap/starter-kit": "^3.26.0",
     "oidc-client-ts": "^3.5.0",
     "pyodide": "^0.26.4",
     "react": "^18.3.1",

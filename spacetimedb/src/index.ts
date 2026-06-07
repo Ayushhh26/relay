@@ -12,6 +12,8 @@ const room = table(
     kind: t.string().default('interview'),
     policy: t.string().default('syntax-only'),
     selectedQuestionId: t.string().default(''),
+    editorMode: t.string().default('code'),
+    closedAt: t.u64().default(0n),
   }
 );
 
@@ -102,6 +104,18 @@ export default spacetimedb;
 
 function findRoom(ctx: any, roomId: bigint) {
   return ctx.db.room.id.find(roomId) ?? null;
+}
+
+function isRoomClosed(room: { closedAt?: bigint } | null): boolean {
+  return (room?.closedAt ?? 0n) > 0n;
+}
+
+function deactivateAllParticipants(ctx: any, roomId: bigint) {
+  for (const p of ctx.db.participant.iter()) {
+    if (p.roomId === roomId && p.active) {
+      ctx.db.participant.id.update({ ...p, active: false });
+    }
+  }
 }
 
 function findActiveParticipant(ctx: any, roomId: bigint, identity: any) {
@@ -211,16 +225,20 @@ export const onDisconnect = spacetimedb.clientDisconnected((ctx) => {
 // ── Reducers ──────────────────────────────────────────────────────────────
 
 export const createRoom = spacetimedb.reducer(
-  { title: t.string(), kind: t.string(), policy: t.string() },
-  (ctx, { title, kind, policy }) => {
+  { title: t.string(), kind: t.string(), policy: t.string(), editorMode: t.string() },
+  (ctx, { title, kind, policy, editorMode }) => {
+    const roomKind = kind || 'interview';
+    const mode = roomKind === 'study' && editorMode === 'notepad' ? 'notepad' : 'code';
     ctx.db.room.insert({
       id: 0n,
       title,
-      kind: kind || 'interview',
+      kind: roomKind,
       policy: policy || 'syntax-only',
       selectedQuestionId: '',
+      editorMode: mode,
       createdBy: ctx.sender,
       createdAt: ctx.timestamp.microsSinceUnixEpoch,
+      closedAt: 0n,
     });
   }
 );
@@ -233,6 +251,7 @@ export const joinRoom = spacetimedb.reducer(
 
     const room = findRoom(ctx, roomId);
     if (!room) throw new SenderError('Room not found');
+    if (isRoomClosed(room)) throw new SenderError('This session has ended');
 
     const roomKind = room.kind || 'interview';
     if (!validRolesForKind(roomKind).includes(role))
@@ -461,6 +480,24 @@ export const leaveRoom = spacetimedb.reducer(
         return;
       }
     }
+  }
+);
+
+export const closeRoom = spacetimedb.reducer(
+  { roomId: t.u64() },
+  (ctx, { roomId }) => {
+    const room = findRoom(ctx, roomId);
+    if (!room) throw new SenderError('Room not found');
+    if (isRoomClosed(room)) return;
+
+    const allowed = room.kind === 'study' ? ['host'] : ['interviewer'];
+    requireParticipant(ctx, roomId, allowed);
+
+    ctx.db.room.id.update({
+      ...room,
+      closedAt: ctx.timestamp.microsSinceUnixEpoch,
+    });
+    deactivateAllParticipants(ctx, roomId);
   }
 );
 

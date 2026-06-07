@@ -36,6 +36,7 @@ import {
 // Import all reducer arg schemas
 import AppendRunOutputReducer from "./append_run_output_reducer";
 import ClearRunOutputReducer from "./clear_run_output_reducer";
+import CloseRoomReducer from "./close_room_reducer";
 import CreateRoomReducer from "./create_room_reducer";
 import DeleteSignalReducer from "./delete_signal_reducer";
 import FinalizeAssistLogReducer from "./finalize_assist_log_reducer";
@@ -147,6 +148,7 @@ const tablesSchema = __schema({
 const reducersSchema = __reducers(
   __reducerSchema("append_run_output", AppendRunOutputReducer),
   __reducerSchema("clear_run_output", ClearRunOutputReducer),
+  __reducerSchema("close_room", CloseRoomReducer),
   __reducerSchema("create_room", CreateRoomReducer),
   __reducerSchema("delete_signal", DeleteSignalReducer),
   __reducerSchema("finalize_assist_log", FinalizeAssistLogReducer),

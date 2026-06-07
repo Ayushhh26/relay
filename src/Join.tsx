@@ -4,7 +4,7 @@ import { useAuth } from 'react-oidc-context'
 import { useSpacetimeDB, useTable, useReducer } from 'spacetimedb/react'
 import { tables, reducers } from './module_bindings'
 import { profileDisplayName } from './profileDisplayName'
-import { validRolesForKind, isStudyRoom } from './roomConfig'
+import { validRolesForKind, isStudyRoom, isRoomClosed } from './roomConfig'
 import { saveRoomMembership } from './roomMembership'
 
 const AUTH_ENABLED = import.meta.env.VITE_AUTH_ENABLED === 'true'
@@ -47,6 +47,10 @@ function JoinInner({ profileDefaultName }: { profileDefaultName: string }) {
   async function attemptJoin(displayName: string) {
     if (!room) {
       setJoinError('Room not found')
+      return
+    }
+    if (isRoomClosed(room)) {
+      setJoinError('This session has ended')
       return
     }
     if (!validRolesForKind(room.kind).includes(role)) {

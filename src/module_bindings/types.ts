@@ -55,6 +55,8 @@ export const Room = __t.object("Room", {
   kind: __t.string(),
   policy: __t.string(),
   selectedQuestionId: __t.string(),
+  editorMode: __t.string(),
+  closedAt: __t.u64(),
 });
 export type Room = __Infer<typeof Room>;
 

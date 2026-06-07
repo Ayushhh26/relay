@@ -11,8 +11,5 @@ import {
 } from "spacetimedb";
 
 export default {
-  title: __t.string(),
-  kind: __t.string(),
-  policy: __t.string(),
-  editorMode: __t.string(),
+  roomId: __t.u64(),
 };

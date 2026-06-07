@@ -4,6 +4,7 @@ import { useAuth } from 'react-oidc-context'
 import { useSpacetimeDB, useTable, useReducer } from 'spacetimedb/react'
 import { tables, reducers } from './module_bindings'
 import { profileDisplayName } from './profileDisplayName'
+import { studyEditorModeLabel } from './roomConfig'
 import { saveRoomMembership } from './roomMembership'
 
 const ORIGIN = window.location.origin
@@ -20,6 +21,7 @@ export function Lobby() {
 
   const [title, setTitle] = useState('')
   const [kind, setKind] = useState('interview')
+  const [editorMode, setEditorMode] = useState('code')
   const [policy, setPolicy] = useState('syntax-only')
   const [submittedTitle, setSubmittedTitle] = useState<string | null>(null)
   const [createdRoomId, setCreatedRoomId] = useState<bigint | null>(null)
@@ -41,7 +43,7 @@ export function Lobby() {
     submittedKindRef.current = kind
     setSubmittedTitle(t)
     setCreatedRoomId(null)
-    createRoom({ title: t, kind, policy })
+    createRoom({ title: t, kind, policy, editorMode: kind === 'study' ? editorMode : 'code' })
   }
 
   // Fallback: match from subscription snapshot (e.g. if insert event was missed)
@@ -62,6 +64,7 @@ export function Lobby() {
   // Use DB value if available, fall back to what we submitted
   const roomKind = createdRoom?.kind ?? submittedKindRef.current
   const isStudy = roomKind === 'study'
+  const roomEditorMode = createdRoom?.editorMode ?? 'code'
 
   if (submittedTitle && resolvedRoomId == null) {
     return (
@@ -80,6 +83,11 @@ export function Lobby() {
         <h1 style={{ margin: '0 0 4px', fontSize: 22 }}>Relay</h1>
         <p style={{ margin: '0 0 24px', fontSize: 13, opacity: 0.5 }}>
           Room created · ID: <span data-testid="room-id">{id}</span>
+          {isStudy && (
+            <span data-testid="editor-mode-label" style={{ marginLeft: 8 }}>
+              · {studyEditorModeLabel(roomEditorMode === 'notepad' ? 'notepad' : 'code')}
+            </span>
+          )}
         </p>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%', maxWidth: 520 }}>
@@ -152,6 +160,18 @@ export function Lobby() {
           <option value="interview">Interview (candidate edits)</option>
           <option value="study">Study session (everyone edits)</option>
         </select>
+
+        {kind === 'study' && (
+          <select
+            data-testid="editor-mode-select"
+            value={editorMode}
+            onChange={e => setEditorMode(e.target.value)}
+            style={selectStyle}
+          >
+            <option value="code">Code editor (Run + terminal)</option>
+            <option value="notepad">Notepad (shared notes)</option>
+          </select>
+        )}
 
         <select
           data-testid="policy-select"

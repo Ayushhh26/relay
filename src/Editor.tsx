@@ -17,6 +17,7 @@ export function Editor({ value, onChange, readOnly = false }: Props) {
         resize: 'none',
         fontFamily: 'monospace',
         fontSize: 14,
+        lineHeight: 1.45,
         padding: '12px',
         background: '#1e1e1e',
         color: '#d4d4d4',

@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect } from 'react'
+import { useRef, useState, useEffect, lazy, Suspense } from 'react'
 
 import { useParams, useNavigate } from 'react-router-dom'
 
@@ -7,6 +7,10 @@ import { useSpacetimeDB, useTable, useReducer } from 'spacetimedb/react'
 import { tables, reducers } from './module_bindings'
 
 import { Editor } from './Editor'
+
+const NotepadEditor = lazy(() =>
+  import('./NotepadEditor').then(m => ({ default: m.NotepadEditor }))
+)
 
 import { AssistPanel } from './AssistPanel'
 
@@ -39,9 +43,9 @@ import {
   normalizeLanguage,
 } from './languages'
 
-import { isPresentParticipant, isStudyRoom } from './roomConfig'
+import { isPresentParticipant, isStudyRoom, isStudyNotepadRoom, isRoomClosed } from './roomConfig'
 
-import { loadRoomMembership } from './roomMembership'
+import { loadRoomMembership, clearRoomMembership } from './roomMembership'
 
 import { useVideoCall } from './useVideoCall'
 
@@ -75,6 +79,8 @@ export function RoomView() {
 
   const leaveRoom = useReducer(reducers.leaveRoom)
 
+  const closeRoom = useReducer(reducers.closeRoom)
+
   const joinRoom = useReducer(reducers.joinRoom)
 
   const selectInterviewQuestion = useReducer(reducers.selectInterviewQuestion)
@@ -106,6 +112,8 @@ export function RoomView() {
 
 
   const isStudy = isStudyRoom(currentRoom?.kind)
+  const isNotepad = isStudyNotepadRoom(currentRoom)
+  const showCodeEditor = !isNotepad
 
   const selectedQuestion = getQuestionById(currentRoom?.selectedQuestionId)
 
@@ -139,6 +147,7 @@ export function RoomView() {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const hasPendingWrite = useRef(false)
   const hasRejoined = useRef(false)
+  const hasLeftSession = useRef(false)
 
 
 
@@ -179,6 +188,35 @@ export function RoomView() {
     return () => window.removeEventListener('pagehide', onLeave)
 
   }, [isActive, !!myParticipant])
+
+
+
+  useEffect(() => {
+    if (!isActive || !participantsReady || hasLeftSession.current) return
+    if (currentRoom && isRoomClosed(currentRoom)) {
+      hasLeftSession.current = true
+      clearRoomMembership(ROOM_ID)
+      navigate('/', { replace: true })
+    }
+  }, [isActive, participantsReady, currentRoom?.closedAt, ROOM_ID, navigate])
+
+
+
+  function handleExitSession() {
+    if (hasLeftSession.current) return
+    hasLeftSession.current = true
+    leaveRoom({ roomId: ROOM_ID })
+    clearRoomMembership(ROOM_ID)
+    navigate('/', { replace: true })
+  }
+
+  function handleCloseSession() {
+    if (hasLeftSession.current) return
+    hasLeftSession.current = true
+    closeRoom({ roomId: ROOM_ID })
+    clearRoomMembership(ROOM_ID)
+    navigate('/', { replace: true })
+  }
 
 
 
@@ -402,9 +440,13 @@ export function RoomView() {
 
         myRole={myParticipant.role}
 
-        canRun={canEditDoc && !isRunning}
+        canRun={canEditDoc && showCodeEditor && !isRunning}
 
         onRun={() => { void handleRun() }}
+
+        onExit={handleExitSession}
+
+        onClose={handleCloseSession}
 
       />
 
@@ -444,63 +486,51 @@ export function RoomView() {
 
 
 
-          <div style={{ flex: '1 1 58%', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-
+          <div style={{ flex: showCodeEditor ? '1 1 58%' : 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
             <div style={editorTabStyles.bar}>
-
-              <span style={editorTabStyles.tab}>{languageFileName(docLanguage)}</span>
-
-              <div style={editorTabStyles.right}>
-
-                <select
-
-                  data-testid="language-select"
-
-                  value={docLanguage}
-
-                  onChange={e => handleLanguageChange(e.target.value)}
-
-                  disabled={!canEditDoc}
-
-                  style={editorTabStyles.select}
-
-                >
-
-                  {CODE_LANGUAGES.map(lang => (
-
-                    <option key={lang} value={lang}>{languageLabel(lang)}</option>
-
-                  ))}
-
-                </select>
-
-              </div>
-
+              <span style={editorTabStyles.tab}>
+                {isNotepad ? 'Notes' : languageFileName(docLanguage)}
+              </span>
+              {showCodeEditor && (
+                <div style={editorTabStyles.right}>
+                  <select
+                    data-testid="language-select"
+                    value={docLanguage}
+                    onChange={e => handleLanguageChange(e.target.value)}
+                    disabled={!canEditDoc}
+                    style={editorTabStyles.select}
+                  >
+                    {CODE_LANGUAGES.map(lang => (
+                      <option key={lang} value={lang}>{languageLabel(lang)}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
-
             <div style={{ flex: 1, minHeight: 0 }}>
-
-              <Editor
-
-                value={editorValue}
-
-                onChange={canEditDoc ? handleChange : undefined}
-
-                readOnly={!canEditDoc}
-
-              />
-
+              {isNotepad ? (
+                <Suspense fallback={<div style={{ flex: 1, padding: 16, opacity: 0.4, fontSize: 13 }}>Loading editor…</div>}>
+                  <NotepadEditor
+                    value={editorValue}
+                    onChange={canEditDoc ? handleChange : undefined}
+                    readOnly={!canEditDoc}
+                  />
+                </Suspense>
+              ) : (
+                <Editor
+                  value={editorValue}
+                  onChange={canEditDoc ? handleChange : undefined}
+                  readOnly={!canEditDoc}
+                />
+              )}
             </div>
-
           </div>
 
-
-
-          <div style={{ flex: '0 0 38%', minHeight: 140, borderTop: '1px solid #1a1a1a' }}>
-
-            <RunPanel outputs={roomOutputs} isRunning={isRunning} />
-
-          </div>
+          {showCodeEditor && (
+            <div style={{ flex: '0 0 38%', minHeight: 140, borderTop: '1px solid #1a1a1a' }}>
+              <RunPanel outputs={roomOutputs} isRunning={isRunning} />
+            </div>
+          )}
 
         </div>
 

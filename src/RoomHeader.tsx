@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
-import { isStudyRoom } from './roomConfig'
+import { canCloseRoom, isStudyRoom, sessionCloseLabel, sessionExitLabel } from './roomConfig'
 
 const DOT_COLOR: Record<string, string> = {
   candidate: '#4ade80',
@@ -38,6 +38,8 @@ interface Props {
   myRole: string
   canRun: boolean
   onRun: () => void
+  onExit: () => void
+  onClose: () => void
 }
 
 function initials(name: string): string {
@@ -112,9 +114,12 @@ function InviteMenu({
   )
 }
 
-export function RoomHeader({ roomTitle, roomId, roomKind, participants, myRole, canRun, onRun }: Props) {
+export function RoomHeader({ roomTitle, roomId, roomKind, participants, myRole, canRun, onRun, onExit, onClose }: Props) {
   const [inviteOpen, setInviteOpen] = useState(false)
   const inviteRef = useRef<HTMLDivElement>(null)
+  const showClose = canCloseRoom(myRole, roomKind)
+  const exitLabel = sessionExitLabel(roomKind)
+  const closeLabel = sessionCloseLabel(roomKind)
 
   useEffect(() => {
     if (!inviteOpen) return
@@ -169,6 +174,25 @@ export function RoomHeader({ roomTitle, roomId, roomKind, participants, myRole, 
               />
             )}
           </div>
+          {showClose ? (
+            <button
+              type="button"
+              data-testid="close-session-button"
+              onClick={onClose}
+              style={styles.closeBtn}
+            >
+              {closeLabel}
+            </button>
+          ) : (
+            <button
+              type="button"
+              data-testid="exit-session-button"
+              onClick={onExit}
+              style={styles.exitBtn}
+            >
+              {exitLabel}
+            </button>
+          )}
         </div>
       </div>
 
@@ -284,6 +308,25 @@ const styles: Record<string, CSSProperties> = {
     background: '#141414',
     border: '1px solid #2a2a2a',
     color: '#e2e8f0',
+    cursor: 'pointer',
+  },
+  exitBtn: {
+    padding: '6px 12px',
+    borderRadius: 8,
+    fontSize: 12,
+    background: '#141414',
+    border: '1px solid #334155',
+    color: '#cbd5e1',
+    cursor: 'pointer',
+  },
+  closeBtn: {
+    padding: '6px 12px',
+    borderRadius: 8,
+    fontSize: 12,
+    fontWeight: 600,
+    background: '#450a0a',
+    border: '1px solid #7f1d1d',
+    color: '#fca5a5',
     cursor: 'pointer',
   },
   menu: {

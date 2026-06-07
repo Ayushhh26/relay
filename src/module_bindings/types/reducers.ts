@@ -8,6 +8,7 @@ import { type Infer as __Infer } from "spacetimedb";
 // Import all reducer arg schemas
 import AppendRunOutputReducer from "../append_run_output_reducer";
 import ClearRunOutputReducer from "../clear_run_output_reducer";
+import CloseRoomReducer from "../close_room_reducer";
 import CreateRoomReducer from "../create_room_reducer";
 import DeleteSignalReducer from "../delete_signal_reducer";
 import FinalizeAssistLogReducer from "../finalize_assist_log_reducer";
@@ -23,6 +24,7 @@ import UpdateMediaStateReducer from "../update_media_state_reducer";
 
 export type AppendRunOutputParams = __Infer<typeof AppendRunOutputReducer>;
 export type ClearRunOutputParams = __Infer<typeof ClearRunOutputReducer>;
+export type CloseRoomParams = __Infer<typeof CloseRoomReducer>;
 export type CreateRoomParams = __Infer<typeof CreateRoomReducer>;
 export type DeleteSignalParams = __Infer<typeof DeleteSignalReducer>;
 export type FinalizeAssistLogParams = __Infer<typeof FinalizeAssistLogReducer>;
