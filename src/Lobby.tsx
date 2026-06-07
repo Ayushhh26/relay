@@ -188,20 +188,24 @@ function useEnterAsRole(roomId: string, role: 'interviewer' | 'host') {
   const joinRoom = useReducer(reducers.joinRoom)
   const { isActive } = useSpacetimeDB()
   const [joining, setJoining] = useState(false)
+  const [joinError, setJoinError] = useState<string | null>(null)
 
   async function enter(displayName: string) {
     if (!isActive || joining) return
     setJoining(true)
+    setJoinError(null)
     try {
       await joinRoom({ roomId: BigInt(roomId), displayName, role })
       saveRoomMembership(roomId, { displayName, role })
       navigate(`/room/${roomId}`, { replace: true })
+    } catch (e) {
+      setJoinError(e instanceof Error ? e.message : 'Failed to join room')
     } finally {
       setJoining(false)
     }
   }
 
-  return { enter, joining, isActive }
+  return { enter, joining, isActive, joinError }
 }
 
 function enterButtonStyle(enabled: boolean): CSSProperties {
@@ -215,63 +219,75 @@ function enterButtonStyle(enabled: boolean): CSSProperties {
 
 function EnterAsInterviewerAuthed({ roomId }: { roomId: string }) {
   const auth = useAuth()
-  const { enter, joining, isActive } = useEnterAsRole(roomId, 'interviewer')
+  const { enter, joining, isActive, joinError } = useEnterAsRole(roomId, 'interviewer')
   const enabled = isActive && !joining
   return (
-    <button
-      data-testid="enter-as-interviewer-btn"
-      onClick={() => enter(profileDisplayName(auth, 'Interviewer'))}
-      disabled={!enabled}
-      style={enterButtonStyle(enabled)}
-    >
-      {joining ? 'Entering room…' : 'Enter as interviewer →'}
-    </button>
+    <>
+      <button
+        data-testid="enter-as-interviewer-btn"
+        onClick={() => enter(profileDisplayName(auth, 'Interviewer'))}
+        disabled={!enabled}
+        style={enterButtonStyle(enabled)}
+      >
+        {joining ? 'Entering room…' : 'Enter as interviewer →'}
+      </button>
+      {joinError && <p style={{ margin: 0, fontSize: 12, color: '#f87171', textAlign: 'center' }}>{joinError}</p>}
+    </>
   )
 }
 
 function EnterAsInterviewerAnon({ roomId }: { roomId: string }) {
-  const { enter, joining, isActive } = useEnterAsRole(roomId, 'interviewer')
+  const { enter, joining, isActive, joinError } = useEnterAsRole(roomId, 'interviewer')
   const enabled = isActive && !joining
   return (
-    <button
-      data-testid="enter-as-interviewer-btn"
-      onClick={() => enter('Interviewer')}
-      disabled={!enabled}
-      style={enterButtonStyle(enabled)}
-    >
-      {joining ? 'Entering room…' : 'Enter as interviewer →'}
-    </button>
+    <>
+      <button
+        data-testid="enter-as-interviewer-btn"
+        onClick={() => enter('Interviewer')}
+        disabled={!enabled}
+        style={enterButtonStyle(enabled)}
+      >
+        {joining ? 'Entering room…' : 'Enter as interviewer →'}
+      </button>
+      {joinError && <p style={{ margin: 0, fontSize: 12, color: '#f87171', textAlign: 'center' }}>{joinError}</p>}
+    </>
   )
 }
 
 function EnterAsHostAuthed({ roomId }: { roomId: string }) {
   const auth = useAuth()
-  const { enter, joining, isActive } = useEnterAsRole(roomId, 'host')
+  const { enter, joining, isActive, joinError } = useEnterAsRole(roomId, 'host')
   const enabled = isActive && !joining
   return (
-    <button
-      data-testid="enter-as-host-btn"
-      onClick={() => enter(profileDisplayName(auth, 'Host'))}
-      disabled={!enabled}
-      style={enterButtonStyle(enabled)}
-    >
-      {joining ? 'Entering room…' : 'Enter as host →'}
-    </button>
+    <>
+      <button
+        data-testid="enter-as-host-btn"
+        onClick={() => enter(profileDisplayName(auth, 'Host'))}
+        disabled={!enabled}
+        style={enterButtonStyle(enabled)}
+      >
+        {joining ? 'Entering room…' : 'Enter as host →'}
+      </button>
+      {joinError && <p style={{ margin: 0, fontSize: 12, color: '#f87171', textAlign: 'center' }}>{joinError}</p>}
+    </>
   )
 }
 
 function EnterAsHostAnon({ roomId }: { roomId: string }) {
-  const { enter, joining, isActive } = useEnterAsRole(roomId, 'host')
+  const { enter, joining, isActive, joinError } = useEnterAsRole(roomId, 'host')
   const enabled = isActive && !joining
   return (
-    <button
-      data-testid="enter-as-host-btn"
-      onClick={() => enter('Host')}
-      disabled={!enabled}
-      style={enterButtonStyle(enabled)}
-    >
-      {joining ? 'Entering room…' : 'Enter as host →'}
-    </button>
+    <>
+      <button
+        data-testid="enter-as-host-btn"
+        onClick={() => enter('Host')}
+        disabled={!enabled}
+        style={enterButtonStyle(enabled)}
+      >
+        {joining ? 'Entering room…' : 'Enter as host →'}
+      </button>
+      {joinError && <p style={{ margin: 0, fontSize: 12, color: '#f87171', textAlign: 'center' }}>{joinError}</p>}
+    </>
   )
 }
 
