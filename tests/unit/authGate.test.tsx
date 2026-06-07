@@ -86,4 +86,16 @@ describe('AuthGate', () => {
     expect(screen.getByText('callback handler')).toBeTruthy()
     expect(screen.queryByTestId('sign-in-btn')).toBeNull()
   })
+
+  it('passes through on /logout so sign-out page can render', () => {
+    vi.stubEnv('VITE_AUTH_ENABLED', 'true')
+    mockUseAuth.mockReturnValue({ isLoading: false, isAuthenticated: false })
+    render(
+      <MemoryRouter initialEntries={['/logout']}>
+        <AuthGate><span>logout handler</span></AuthGate>
+      </MemoryRouter>
+    )
+    expect(screen.getByText('logout handler')).toBeTruthy()
+    expect(screen.queryByTestId('sign-in-btn')).toBeNull()
+  })
 })

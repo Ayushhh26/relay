@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { canCloseRoom, isStudyRoom, sessionCloseLabel, sessionExitLabel } from './roomConfig'
+import { AuthUserChip } from './authUi'
 
 const DOT_COLOR: Record<string, string> = {
   candidate: '#4ade80',
@@ -143,6 +144,7 @@ export function RoomHeader({ roomTitle, roomId, roomKind, participants, myRole, 
         </div>
 
         <div style={styles.actions}>
+          <AuthUserChip compact />
           <span style={styles.roleBadge}>{ROLE_LABEL[myRole] ?? myRole}</span>
           {canRun && (
             <button

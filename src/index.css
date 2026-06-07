@@ -1,6 +1,202 @@
 *, *::before, *::after { box-sizing: border-box; }
 body { margin: 0; background: #111; }
 
+/* Auth pages (login, callback, logout) */
+.auth-page {
+  position: relative;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: #0a0a0a;
+  color: #e2e8f0;
+  font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+  overflow: hidden;
+}
+.auth-page__glow {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(37, 99, 235, 0.18), transparent 55%),
+    radial-gradient(ellipse 60% 40% at 100% 100%, rgba(96, 165, 250, 0.08), transparent 50%);
+  pointer-events: none;
+}
+.auth-page__inner {
+  position: relative;
+  width: 100%;
+  max-width: 440px;
+  z-index: 1;
+}
+.auth-card {
+  background: #111;
+  border: 1px solid #1f1f1f;
+  border-radius: 14px;
+  padding: 28px 28px 24px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+}
+.auth-brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+.auth-brand__mark {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 800;
+  color: #f8fafc;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  box-shadow: 0 8px 24px rgba(37, 99, 235, 0.35);
+}
+.auth-brand__title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  color: #f8fafc;
+}
+.auth-brand__subtitle {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: #64748b;
+}
+.auth-copy {
+  margin: 0 0 20px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #94a3b8;
+}
+.auth-footnote {
+  margin: 18px 0 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: #475569;
+  text-align: center;
+}
+.auth-status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0 4px;
+  font-size: 14px;
+  color: #94a3b8;
+}
+.auth-spinner {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid #334155;
+  border-top-color: #60a5fa;
+  animation: auth-spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes auth-spin {
+  to { transform: rotate(360deg); }
+}
+.auth-error {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #2a1a1a;
+  border: 1px solid #7f1d1d;
+  color: #fca5a5;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.auth-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 11px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+}
+.auth-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.auth-btn--primary {
+  background: #2563eb;
+  color: #fff;
+}
+.auth-btn--primary:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+.auth-btn--secondary {
+  background: #141414;
+  color: #cbd5e1;
+  border: 1px solid #2a2a2a;
+}
+.auth-btn--secondary:hover:not(:disabled) {
+  border-color: #475569;
+}
+.auth-btn--link {
+  box-sizing: border-box;
+}
+.auth-user {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 6px 4px 4px;
+  border-radius: 999px;
+  background: #141414;
+  border: 1px solid #222;
+}
+.auth-user--compact {
+  gap: 8px;
+  padding: 3px 8px 3px 3px;
+}
+.auth-user__avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  color: #0f172a;
+  background: #60a5fa;
+  flex-shrink: 0;
+}
+.auth-user__name {
+  font-size: 12px;
+  font-weight: 500;
+  color: #cbd5e1;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.auth-user__sign-out {
+  font-size: 11px;
+  font-weight: 600;
+  color: #94a3b8;
+  text-decoration: none;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+}
+.auth-user__sign-out:hover {
+  color: #e2e8f0;
+  background: #1a1a1a;
+  border-color: #2a2a2a;
+}
+.auth-user--compact .auth-user__sign-out {
+  padding: 3px 6px;
+}
+
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50%       { opacity: 0.35; }
