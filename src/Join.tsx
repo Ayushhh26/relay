@@ -4,6 +4,8 @@ import { useAuth } from 'react-oidc-context'
 import { useSpacetimeDB, useTable, useReducer } from 'spacetimedb/react'
 import { tables, reducers } from './module_bindings'
 import { profileDisplayName } from './profileDisplayName'
+import { validRolesForKind, isStudyRoom } from './roomConfig'
+import { saveRoomMembership } from './roomMembership'
 
 const AUTH_ENABLED = import.meta.env.VITE_AUTH_ENABLED === 'true'
 
@@ -39,6 +41,7 @@ function JoinInner({ profileDefaultName }: { profileDefaultName: string }) {
   const activeCandidates = participants.filter(
     p => p.roomId === roomId && p.active && p.role === 'candidate'
   )
+  const isInterview = !isStudyRoom(room?.kind)
 
   // Auto-join when name is in URL, once subscriptions have settled
   useEffect(() => {
@@ -50,23 +53,35 @@ function JoinInner({ profileDefaultName }: { profileDefaultName: string }) {
       return
     }
 
-    if (role === 'candidate' && activeCandidates.length > 0) {
+    if (!validRolesForKind(room.kind).includes(role)) {
+      setJoinError(`Role "${role}" is not valid for this room type`)
+      return
+    }
+
+    if (isInterview && role === 'candidate' && activeCandidates.length > 0) {
       setJoinError('Candidate seat already taken')
       return
     }
 
     hasAutoJoined.current = true
     joinRoomFn({ roomId, displayName: nameFromUrl, role })
+    saveRoomMembership(roomId, { displayName: nameFromUrl, role })
     navigate(`/room/${roomId}`, { replace: true })
-  }, [isActive, roomsReady, participantsReady, activeCandidates.length])
+  }, [isActive, roomsReady, participantsReady, activeCandidates.length, room?.kind, role])
 
   function handleJoin() {
     if (!name.trim() || !isActive || !room) return
-    if (role === 'candidate' && activeCandidates.length > 0) {
+    if (!validRolesForKind(room.kind).includes(role)) {
+      setJoinError(`Role "${role}" is not valid for this room type`)
+      return
+    }
+    if (isInterview && role === 'candidate' && activeCandidates.length > 0) {
       setJoinError('Candidate seat already taken')
       return
     }
-    joinRoomFn({ roomId, displayName: name.trim(), role })
+    const displayName = name.trim()
+    joinRoomFn({ roomId, displayName, role })
+    saveRoomMembership(roomId, { displayName, role })
     navigate(`/room/${roomId}`, { replace: true })
   }
 

@@ -1,6 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import OpenAI from 'openai'
 import { classifyPrompt } from '../src/classifyPrompt'
+import { buildAssistMessages } from '../src/buildAssistMessages'
 
 const client = new OpenAI({
   apiKey: process.env.NVIDIA_API_KEY,
@@ -14,7 +15,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'OPTIONS') return res.status(200).end()
   if (req.method !== 'POST') return res.status(405).end()
 
-  const { prompt, policy } = req.body as { prompt: string; policy: string }
+  const { prompt, policy, roomKind, code, runOutput, roomTitle } = req.body as {
+    prompt: string; policy: string;
+    roomKind?: string; code?: string; runOutput?: string; roomTitle?: string
+  }
   if (!prompt?.trim()) return res.status(400).json({ error: 'prompt required' })
 
   const requestedType = classifyPrompt(prompt)
@@ -31,13 +35,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ? 'You are a helpful coding assistant. Keep answers focused on syntax and brief examples only.'
         : 'You are a helpful coding assistant. Keep answers focused and educational.'
 
+  const messages = buildAssistMessages(systemPrompt, prompt, { roomKind, code, runOutput, roomTitle })
+
   const completion = await client.chat.completions.create({
     model: 'meta/llama-3.3-70b-instruct',
     max_tokens: 300,
-    messages: [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: prompt },
-    ],
+    messages,
   })
 
   const responseText = completion.choices[0]?.message?.content ?? ''

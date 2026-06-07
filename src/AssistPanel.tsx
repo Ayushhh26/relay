@@ -1,6 +1,8 @@
 import { useRef, useState, useEffect } from 'react'
 import { tables, reducers } from './module_bindings'
+import type { RunOutput } from './module_bindings/types'
 import { useReducer, useTable } from 'spacetimedb/react'
+import { formatRunOutput } from './assistContext'
 
 const TAG_COLOR: Record<string, string> = {
   syntax: '#4ade80',
@@ -14,9 +16,14 @@ interface Props {
   roomId: bigint
   policy: string
   canAsk: boolean
+  roomKind: string
+  code: string
+  runOutput: RunOutput[]
+  roomTitle: string
+  myRole: string
 }
 
-export function AssistPanel({ roomId, policy, canAsk }: Props) {
+export function AssistPanel({ roomId, policy, canAsk, roomKind, code, runOutput, roomTitle, myRole }: Props) {
   const finalizeAssistLog = useReducer(reducers.finalizeAssistLog)
   const [allLogs] = useTable(tables.assistLog)
   const roomLogs = allLogs.filter(l => l.roomId === roomId)
@@ -38,10 +45,14 @@ export function AssistPanel({ roomId, policy, canAsk }: Props) {
     setApiError(null)
     setPrompt('')
     try {
+      const body = roomKind === 'study'
+        ? { prompt: sent, policy, roomKind, code, runOutput: formatRunOutput(runOutput), role: myRole, roomTitle }
+        : { prompt: sent, policy }
+
       const res = await fetch(`${API_URL}/api/assist`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: sent, policy }),
+        body: JSON.stringify(body),
       })
       if (!res.ok) throw new Error(`API ${res.status}`)
       const { response, requestedType, assistType, policyStatus } = await res.json()
@@ -63,7 +74,9 @@ export function AssistPanel({ roomId, policy, canAsk }: Props) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: 12, boxSizing: 'border-box', background: '#0a0a0a' }}>
-      <h3 style={{ margin: '0 0 8px', fontSize: 13, letterSpacing: 1, color: '#888' }}>ASSIST LOG</h3>
+      <h3 style={{ margin: '0 0 8px', fontSize: 13, letterSpacing: 1, color: '#888' }}>
+        {roomKind === 'study' ? 'STUDY ASSIST' : 'ASSIST LOG'}
+      </h3>
 
       <div data-testid="assist-log" style={{ flex: 1, overflowY: 'auto', marginBottom: 8 }}>
         {roomLogs.length === 0 && (
@@ -98,7 +111,9 @@ export function AssistPanel({ roomId, policy, canAsk }: Props) {
       )}
       {!canAsk && (
         <div style={{ fontSize: 11, opacity: 0.3, textAlign: 'center', padding: '6px 0' }}>
-          Only candidates can request assistance
+          {roomKind === 'study'
+            ? 'Join the room to request assistance'
+            : 'Only candidates can request assistance'}
         </div>
       )}
       <div style={{ display: canAsk ? 'flex' : 'none', gap: 6 }}>

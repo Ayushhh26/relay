@@ -15,6 +15,9 @@ test-results/
 .env
 .env*.local
 
+# Vercel
+.vercel/
+
 # SpacetimeDB
 spacetimedb/.spacetime/
 

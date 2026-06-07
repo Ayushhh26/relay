@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
 import { useSpacetimeDB, useTable, useReducer } from 'spacetimedb/react'
 import { tables, reducers } from './module_bindings'
 import { Editor } from './Editor'
@@ -8,19 +8,23 @@ import { RunPanel } from './RunPanel'
 import { VideoSidebar } from './VideoSidebar'
 import { QuestionPanel } from './QuestionPanel'
 import { ADD_TWO_NUMBERS } from './problem'
-import { isPresentParticipant } from './roomConfig'
+import { isPresentParticipant, isStudyRoom } from './roomConfig'
+import { loadRoomMembership } from './roomMembership'
 import { useVideoCall } from './useVideoCall'
 
 const DOT_COLOR: Record<string, string> = {
   candidate: '#4ade80',
   interviewer: '#60a5fa',
   observer: '#a78bfa',
+  host: '#f59e0b',
+  member: '#34d399',
 }
 
 export function RoomView() {
   const { roomId: roomIdStr } = useParams<{ roomId: string }>()
   const ROOM_ID = BigInt(roomIdStr!)
 
+  const navigate = useNavigate()
   const { isActive, identity } = useSpacetimeDB()
   const myIdentityHex = identity?.toHexString() ?? ''
   const updateDocument = useReducer(reducers.updateDocument)
@@ -28,10 +32,11 @@ export function RoomView() {
   const clearRunOutput = useReducer(reducers.clearRunOutput)
   const heartbeat = useReducer(reducers.heartbeat)
   const leaveRoom = useReducer(reducers.leaveRoom)
+  const joinRoom = useReducer(reducers.joinRoom)
 
   const [rooms] = useTable(tables.room)
   const [docs] = useTable(tables.document)
-  const [participants] = useTable(tables.participant)
+  const [participants, participantsReady] = useTable(tables.participant)
   const [runOutputs] = useTable(tables.runOutput)
 
   const currentRoom = rooms.find(r => r.id === ROOM_ID)
@@ -41,18 +46,21 @@ export function RoomView() {
   )
   const roomOutputs = runOutputs.filter(r => r.roomId === ROOM_ID)
 
+  const isStudy = isStudyRoom(currentRoom?.kind)
+
   // Derive role/permissions from the DB participant row — not from URL
   const myParticipant = activeParticipants.find(
     p => p.identity.toHexString() === myIdentityHex
   )
-  const canEditDoc = myParticipant?.role === 'candidate'
-  const canAsk = myParticipant?.role === 'candidate'
+  const canEditDoc = isStudy ? !!myParticipant : myParticipant?.role === 'candidate'
+  const canAsk = canEditDoc
   const policy = currentRoom?.policy || 'syntax-only'
 
   const [localContent, setLocalContent] = useState('')
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const hasPendingWrite = useRef(false)
   const hasSeededStarter = useRef(false)
+  const hasRejoined = useRef(false)
 
   const videoCall = useVideoCall({
     roomId: ROOM_ID,
@@ -83,15 +91,28 @@ export function RoomView() {
     }
   }, [remoteDoc?.content])
 
-  // Seed starter code once for the candidate when document is empty
+  // Seed starter code once for interview rooms when document is empty
   useEffect(() => {
+    if (isStudy) return  // study rooms start blank — no seeding
     if (!isActive || !remoteDoc || hasSeededStarter.current) return
     if (remoteDoc.content.trim() !== '') return
     if (!canEditDoc) return
     hasSeededStarter.current = true
     updateDocument({ roomId: ROOM_ID, content: ADD_TWO_NUMBERS.starterCode })
     setLocalContent(ADD_TWO_NUMBERS.starterCode)
-  }, [isActive, remoteDoc?.content, canEditDoc])
+  }, [isActive, remoteDoc?.content, canEditDoc, isStudy])
+
+  // Refresh rejoin: if we land on /room/:id with no active participant row,
+  // load saved membership from sessionStorage and rejoin automatically.
+  // Requires participantsReady so we don't redirect before the snapshot arrives.
+  useEffect(() => {
+    if (!isActive || !participantsReady || hasRejoined.current) return
+    if (myParticipant) { hasRejoined.current = true; return }
+    const saved = loadRoomMembership(ROOM_ID)
+    if (!saved) { navigate(`/join/${String(ROOM_ID)}`, { replace: true }); return }
+    hasRejoined.current = true
+    joinRoom({ roomId: ROOM_ID, displayName: saved.displayName, role: saved.role })
+  }, [isActive, participantsReady, myParticipant])
 
   function handleRun() {
     clearRunOutput({ roomId: ROOM_ID })
@@ -106,7 +127,11 @@ export function RoomView() {
       if (error) appendRunOutput({ roomId: ROOM_ID, seq, stream: 'stderr', text: error })
       worker.terminate()
     }
-    worker.postMessage({ code: editorValue, harness: ADD_TWO_NUMBERS.runHarness })
+    // Study rooms: no test harness — execute code as-is
+    worker.postMessage({
+      code: editorValue,
+      harness: isStudy ? undefined : ADD_TWO_NUMBERS.runHarness,
+    })
   }
 
   function handleChange(val: string) {
@@ -168,11 +193,13 @@ export function RoomView() {
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         <VideoSidebar call={videoCall} />
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          <QuestionPanel
-            title={ADD_TWO_NUMBERS.title}
-            description={ADD_TWO_NUMBERS.description}
-            example={ADD_TWO_NUMBERS.example}
-          />
+          {!isStudy && (
+            <QuestionPanel
+              title={ADD_TWO_NUMBERS.title}
+              description={ADD_TWO_NUMBERS.description}
+              example={ADD_TWO_NUMBERS.example}
+            />
+          )}
           {canEditDoc && (
             <div style={{ padding: '4px 8px', background: '#0d0d0d', borderBottom: '1px solid #1a1a1a' }}>
               <button
@@ -196,7 +223,16 @@ export function RoomView() {
           </div>
         </div>
         <div style={{ width: 340, borderLeft: '1px solid #1a1a1a', overflow: 'hidden' }}>
-          <AssistPanel roomId={ROOM_ID} policy={policy} canAsk={canAsk} />
+          <AssistPanel
+            roomId={ROOM_ID}
+            policy={policy}
+            canAsk={canAsk}
+            roomKind={currentRoom?.kind ?? 'interview'}
+            code={editorValue}
+            runOutput={roomOutputs}
+            roomTitle={currentRoom?.title ?? ''}
+            myRole={myParticipant.role}
+          />
         </div>
       </div>
     </div>

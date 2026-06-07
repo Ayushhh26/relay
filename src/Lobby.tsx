@@ -4,18 +4,26 @@ import { useAuth } from 'react-oidc-context'
 import { useSpacetimeDB, useTable, useReducer } from 'spacetimedb/react'
 import { tables, reducers } from './module_bindings'
 import { profileDisplayName } from './profileDisplayName'
+import { saveRoomMembership } from './roomMembership'
 
 const ORIGIN = window.location.origin
 const AUTH_ENABLED = import.meta.env.VITE_AUTH_ENABLED === 'true'
+
+const selectStyle: CSSProperties = {
+  padding: '8px 12px', borderRadius: 6, background: '#1a1a1a',
+  border: '1px solid #333', color: '#e2e8f0', fontSize: 13,
+}
 
 export function Lobby() {
   const { isActive, identity } = useSpacetimeDB()
   const createRoom = useReducer(reducers.createRoom)
 
   const [title, setTitle] = useState('')
+  const [kind, setKind] = useState('interview')
   const [policy, setPolicy] = useState('syntax-only')
   const [submittedTitle, setSubmittedTitle] = useState<string | null>(null)
   const [createdRoomId, setCreatedRoomId] = useState<bigint | null>(null)
+  const submittedKindRef = useRef('interview')
 
   const submittedTitleRef = useRef<string | null>(null)
 
@@ -30,9 +38,10 @@ export function Lobby() {
     if (!title.trim() || !isActive) return
     const t = title.trim()
     submittedTitleRef.current = t
+    submittedKindRef.current = kind
     setSubmittedTitle(t)
     setCreatedRoomId(null)
-    createRoom({ title: t, kind: 'interview', policy })
+    createRoom({ title: t, kind, policy })
   }
 
   // Fallback: match from subscription snapshot (e.g. if insert event was missed)
@@ -50,6 +59,9 @@ export function Lobby() {
       : null
 
   const resolvedRoomId = createdRoomId ?? createdRoom?.id ?? null
+  // Use DB value if available, fall back to what we submitted
+  const roomKind = createdRoom?.kind ?? submittedKindRef.current
+  const isStudy = roomKind === 'study'
 
   if (submittedTitle && resolvedRoomId == null) {
     return (
@@ -71,19 +83,32 @@ export function Lobby() {
         </p>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%', maxWidth: 520 }}>
-          {AUTH_ENABLED ? (
-            <EnterAsInterviewerAuthed roomId={id} />
+          {isStudy ? (
+            AUTH_ENABLED
+              ? <EnterAsHostAuthed roomId={id} />
+              : <EnterAsHostAnon roomId={id} />
           ) : (
-            <EnterAsInterviewerAnon roomId={id} />
+            AUTH_ENABLED
+              ? <EnterAsInterviewerAuthed roomId={id} />
+              : <EnterAsInterviewerAnon roomId={id} />
           )}
 
           <p style={{ margin: 0, fontSize: 11, opacity: 0.4, textAlign: 'center' }}>
             Share invite links with others
           </p>
 
-          <LinkCard testId="candidate-link" label="Candidate" href={`/join/${id}?role=candidate`} origin={ORIGIN} color="#4ade80" />
-          <LinkCard testId="interviewer-link" label="Interviewer" href={`/join/${id}?role=interviewer`} origin={ORIGIN} color="#60a5fa" />
-          <LinkCard testId="observer-link" label="Observer" href={`/join/${id}?role=observer`} origin={ORIGIN} color="#a78bfa" />
+          {isStudy ? (
+            <>
+              <LinkCard testId="host-link" label="Host" href={`/join/${id}?role=host`} origin={ORIGIN} color="#f59e0b" />
+              <LinkCard testId="member-link" label="Member" href={`/join/${id}?role=member`} origin={ORIGIN} color="#34d399" />
+            </>
+          ) : (
+            <>
+              <LinkCard testId="candidate-link" label="Candidate" href={`/join/${id}?role=candidate`} origin={ORIGIN} color="#4ade80" />
+              <LinkCard testId="interviewer-link" label="Interviewer" href={`/join/${id}?role=interviewer`} origin={ORIGIN} color="#60a5fa" />
+              <LinkCard testId="observer-link" label="Observer" href={`/join/${id}?role=observer`} origin={ORIGIN} color="#a78bfa" />
+            </>
+          )}
         </div>
 
         <button
@@ -114,15 +139,25 @@ export function Lobby() {
           value={title}
           onChange={e => setTitle(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && handleCreate()}
-          placeholder="Interview title (e.g. Alice × Acme)"
+          placeholder="Room title (e.g. Alice × Acme)"
           style={{ padding: '8px 12px', borderRadius: 6, background: '#1a1a1a', border: '1px solid #333', color: '#e2e8f0', fontSize: 14 }}
         />
+
+        <select
+          data-testid="room-kind-select"
+          value={kind}
+          onChange={e => setKind(e.target.value)}
+          style={selectStyle}
+        >
+          <option value="interview">Interview (candidate edits)</option>
+          <option value="study">Study session (everyone edits)</option>
+        </select>
 
         <select
           data-testid="policy-select"
           value={policy}
           onChange={e => setPolicy(e.target.value)}
-          style={{ padding: '8px 12px', borderRadius: 6, background: '#1a1a1a', border: '1px solid #333', color: '#e2e8f0', fontSize: 13 }}
+          style={selectStyle}
         >
           <option value="open">Open (no restrictions)</option>
           <option value="nudge-only">Nudge only (guide, don't solve)</option>
@@ -134,7 +169,8 @@ export function Lobby() {
           onClick={handleCreate}
           disabled={!isActive || !title.trim()}
           style={{
-            padding: '9px 0', borderRadius: 6, fontSize: 14, border: 'none', color: '#fff', cursor: isActive && title.trim() ? 'pointer' : 'default',
+            padding: '9px 0', borderRadius: 6, fontSize: 14, border: 'none', color: '#fff',
+            cursor: isActive && title.trim() ? 'pointer' : 'default',
             background: isActive && title.trim() ? '#2563eb' : '#1e1e1e',
           }}
         >
@@ -145,7 +181,9 @@ export function Lobby() {
   )
 }
 
-function useEnterAsInterviewer(roomId: string) {
+// ── Enter hooks ───────────────────────────────────────────────────────────────
+
+function useEnterAsRole(roomId: string, role: 'interviewer' | 'host') {
   const navigate = useNavigate()
   const joinRoom = useReducer(reducers.joinRoom)
   const { isActive } = useSpacetimeDB()
@@ -155,7 +193,8 @@ function useEnterAsInterviewer(roomId: string) {
     if (!isActive || joining) return
     setJoining(true)
     try {
-      await joinRoom({ roomId: BigInt(roomId), displayName, role: 'interviewer' })
+      await joinRoom({ roomId: BigInt(roomId), displayName, role })
+      saveRoomMembership(roomId, { displayName, role })
       navigate(`/room/${roomId}`, { replace: true })
     } finally {
       setJoining(false)
@@ -167,12 +206,8 @@ function useEnterAsInterviewer(roomId: string) {
 
 function enterButtonStyle(enabled: boolean): CSSProperties {
   return {
-    padding: '11px 0',
-    borderRadius: 8,
-    fontSize: 14,
-    fontWeight: 600,
-    border: 'none',
-    color: '#fff',
+    padding: '11px 0', borderRadius: 8, fontSize: 14, fontWeight: 600,
+    border: 'none', color: '#fff',
     cursor: enabled ? 'pointer' : 'default',
     background: enabled ? '#2563eb' : '#1e1e1e',
   }
@@ -180,9 +215,8 @@ function enterButtonStyle(enabled: boolean): CSSProperties {
 
 function EnterAsInterviewerAuthed({ roomId }: { roomId: string }) {
   const auth = useAuth()
-  const { enter, joining, isActive } = useEnterAsInterviewer(roomId)
+  const { enter, joining, isActive } = useEnterAsRole(roomId, 'interviewer')
   const enabled = isActive && !joining
-
   return (
     <button
       data-testid="enter-as-interviewer-btn"
@@ -196,13 +230,12 @@ function EnterAsInterviewerAuthed({ roomId }: { roomId: string }) {
 }
 
 function EnterAsInterviewerAnon({ roomId }: { roomId: string }) {
-  const { enter, joining, isActive } = useEnterAsInterviewer(roomId)
+  const { enter, joining, isActive } = useEnterAsRole(roomId, 'interviewer')
   const enabled = isActive && !joining
-
   return (
     <button
       data-testid="enter-as-interviewer-btn"
-      onClick={() => enter('Host')}
+      onClick={() => enter('Interviewer')}
       disabled={!enabled}
       style={enterButtonStyle(enabled)}
     >
@@ -210,6 +243,39 @@ function EnterAsInterviewerAnon({ roomId }: { roomId: string }) {
     </button>
   )
 }
+
+function EnterAsHostAuthed({ roomId }: { roomId: string }) {
+  const auth = useAuth()
+  const { enter, joining, isActive } = useEnterAsRole(roomId, 'host')
+  const enabled = isActive && !joining
+  return (
+    <button
+      data-testid="enter-as-host-btn"
+      onClick={() => enter(profileDisplayName(auth, 'Host'))}
+      disabled={!enabled}
+      style={enterButtonStyle(enabled)}
+    >
+      {joining ? 'Entering room…' : 'Enter as host →'}
+    </button>
+  )
+}
+
+function EnterAsHostAnon({ roomId }: { roomId: string }) {
+  const { enter, joining, isActive } = useEnterAsRole(roomId, 'host')
+  const enabled = isActive && !joining
+  return (
+    <button
+      data-testid="enter-as-host-btn"
+      onClick={() => enter('Host')}
+      disabled={!enabled}
+      style={enterButtonStyle(enabled)}
+    >
+      {joining ? 'Entering room…' : 'Enter as host →'}
+    </button>
+  )
+}
+
+// ── LinkCard ──────────────────────────────────────────────────────────────────
 
 function LinkCard({ testId, label, href, origin, color }: {
   testId: string; label: string; href: string; origin: string; color: string
