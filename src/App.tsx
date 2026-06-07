@@ -3,6 +3,7 @@ import { Lobby } from './Lobby'
 import { Join } from './Join'
 import { RoomView } from './RoomView'
 import { AuthCallback } from './AuthCallback'
+import { AuthLogout } from './AuthLogout'
 
 export default function App() {
   return (
@@ -11,6 +12,7 @@ export default function App() {
       <Route path="/join/:roomId" element={<Join />} />
       <Route path="/room/:roomId" element={<RoomView />} />
       <Route path="/callback" element={<AuthCallback />} />
+      <Route path="/logout" element={<AuthLogout />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )

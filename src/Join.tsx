@@ -4,7 +4,7 @@ import { useAuth } from 'react-oidc-context'
 import { useSpacetimeDB, useTable, useReducer } from 'spacetimedb/react'
 import { tables, reducers } from './module_bindings'
 import { profileDisplayName } from './profileDisplayName'
-import { validRolesForKind, isStudyRoom } from './roomConfig'
+import { validRolesForKind, isStudyRoom, isRoomClosed } from './roomConfig'
 import { saveRoomMembership } from './roomMembership'
 
 const AUTH_ENABLED = import.meta.env.VITE_AUTH_ENABLED === 'true'
@@ -35,6 +35,7 @@ function JoinInner({ profileDefaultName }: { profileDefaultName: string }) {
   const defaultName = nameFromUrl || profileDefaultName
   const [name, setName] = useState(defaultName)
   const [joinError, setJoinError] = useState<string | null>(null)
+  const [joining, setJoining] = useState(false)
   const hasAutoJoined = useRef(false)
 
   const room = rooms.find(r => r.id === roomId)
@@ -43,46 +44,48 @@ function JoinInner({ profileDefaultName }: { profileDefaultName: string }) {
   )
   const isInterview = !isStudyRoom(room?.kind)
 
-  // Auto-join when name is in URL, once subscriptions have settled
-  useEffect(() => {
-    if (!isActive || !roomsReady || !participantsReady) return
-    if (hasAutoJoined.current || !nameFromUrl) return
-
+  async function attemptJoin(displayName: string) {
     if (!room) {
       setJoinError('Room not found')
       return
     }
-
+    if (isRoomClosed(room)) {
+      setJoinError('This session has ended')
+      return
+    }
     if (!validRolesForKind(room.kind).includes(role)) {
       setJoinError(`Role "${role}" is not valid for this room type`)
       return
     }
-
     if (isInterview && role === 'candidate' && activeCandidates.length > 0) {
       setJoinError('Candidate seat already taken')
       return
     }
 
+    setJoining(true)
+    setJoinError(null)
+    try {
+      await joinRoomFn({ roomId, displayName, role })
+      saveRoomMembership(roomId, { displayName, role })
+      navigate(`/room/${roomId}`, { replace: true })
+    } catch (e) {
+      setJoinError(e instanceof Error ? e.message : 'Failed to join room')
+    } finally {
+      setJoining(false)
+    }
+  }
+
+  // Auto-join when name is in URL, once subscriptions have settled
+  useEffect(() => {
+    if (!isActive || !roomsReady || !participantsReady || joining) return
+    if (hasAutoJoined.current || !nameFromUrl) return
     hasAutoJoined.current = true
-    joinRoomFn({ roomId, displayName: nameFromUrl, role })
-    saveRoomMembership(roomId, { displayName: nameFromUrl, role })
-    navigate(`/room/${roomId}`, { replace: true })
-  }, [isActive, roomsReady, participantsReady, activeCandidates.length, room?.kind, role])
+    void attemptJoin(nameFromUrl)
+  }, [isActive, roomsReady, participantsReady, nameFromUrl, joining])
 
   function handleJoin() {
-    if (!name.trim() || !isActive || !room) return
-    if (!validRolesForKind(room.kind).includes(role)) {
-      setJoinError(`Role "${role}" is not valid for this room type`)
-      return
-    }
-    if (isInterview && role === 'candidate' && activeCandidates.length > 0) {
-      setJoinError('Candidate seat already taken')
-      return
-    }
-    const displayName = name.trim()
-    joinRoomFn({ roomId, displayName, role })
-    saveRoomMembership(roomId, { displayName, role })
-    navigate(`/room/${roomId}`, { replace: true })
+    if (!name.trim() || !isActive || joining) return
+    void attemptJoin(name.trim())
   }
 
   if (!isActive) {
@@ -104,11 +107,13 @@ function JoinInner({ profileDefaultName }: { profileDefaultName: string }) {
 
   return (
     <div style={{ minHeight: '100vh', background: '#111', color: '#e2e8f0', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontFamily: 'sans-serif', gap: 16 }}>
-      {/* Hidden connection-status for tests that check it after waitForURL */}
       <span data-testid="connection-status" style={{ display: 'none' }}>Connected</span>
 
       <h1 style={{ margin: 0, fontSize: 20 }}>Relay</h1>
       {room && <p style={{ margin: 0, fontSize: 13, opacity: 0.5 }}>{room.title}</p>}
+      {!room && !joinError && (
+        <p style={{ margin: 0, fontSize: 13, opacity: 0.5 }}>Room {String(roomId)} not found</p>
+      )}
 
       {joinError && (
         <div
@@ -119,7 +124,7 @@ function JoinInner({ profileDefaultName }: { profileDefaultName: string }) {
         </div>
       )}
 
-      {!nameFromUrl && !joinError && (
+      {!nameFromUrl && !joining && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%', maxWidth: 320 }}>
           <p style={{ margin: 0, fontSize: 13, opacity: 0.6 }}>
             Joining as <strong>{role}</strong>
@@ -136,16 +141,18 @@ function JoinInner({ profileDefaultName }: { profileDefaultName: string }) {
           <button
             data-testid="join-btn"
             onClick={handleJoin}
-            disabled={!name.trim()}
-            style={{ padding: '9px 0', borderRadius: 6, fontSize: 14, border: 'none', color: '#fff', cursor: name.trim() ? 'pointer' : 'default', background: name.trim() ? '#2563eb' : '#1e1e1e' }}
+            disabled={!name.trim() || !room}
+            style={{ padding: '9px 0', borderRadius: 6, fontSize: 14, border: 'none', color: '#fff', cursor: name.trim() && room ? 'pointer' : 'default', background: name.trim() && room ? '#2563eb' : '#1e1e1e' }}
           >
             Join as {role}
           </button>
         </div>
       )}
 
-      {nameFromUrl && !joinError && (
-        <p style={{ margin: 0, fontSize: 13, opacity: 0.4 }}>Joining as {nameFromUrl}…</p>
+      {joining && (
+        <p style={{ margin: 0, fontSize: 13, opacity: 0.4 }}>
+          {nameFromUrl ? `Joining as ${nameFromUrl}…` : 'Joining…'}
+        </p>
       )}
     </div>
   )

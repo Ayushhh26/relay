@@ -14,4 +14,5 @@ export default {
   title: __t.string(),
   kind: __t.string(),
   policy: __t.string(),
+  editorMode: __t.string(),
 };
