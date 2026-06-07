@@ -1,0 +1,8 @@
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; background: #111; }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.35; }
+}
+.dot { animation: pulse 2s ease-in-out infinite; }

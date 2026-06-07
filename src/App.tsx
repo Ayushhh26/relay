@@ -33,6 +33,7 @@ function App() {
   const [runOutputs] = useTable(tables.runOutput)
   const roomOutputs = runOutputs.filter(r => r.roomId === ROOM_ID)
 
+  const currentRoom = rooms.find(r => r.id === ROOM_ID)
   const remoteDoc = docs.find(d => d.roomId === ROOM_ID)
   const activeParticipants = participants.filter(p => p.roomId === ROOM_ID && p.active)
 
@@ -102,6 +103,9 @@ function App() {
       {/* Header */}
       <div style={{ padding: '6px 16px', borderBottom: '1px solid #222', display: 'flex', alignItems: 'center', gap: 12 }}>
         <h1 style={{ margin: 0, fontSize: 15, letterSpacing: 1 }}>Relay</h1>
+        {currentRoom && (
+          <span style={{ fontSize: 12, opacity: 0.6, fontWeight: 500 }}>{currentRoom.title}</span>
+        )}
         <span data-testid="connection-status" style={{ fontSize: 11, color: '#4ade80' }}>Connected</span>
         <span style={{ fontSize: 11, opacity: 0.4 }}>{ROLE}</span>
       </div>
@@ -113,7 +117,7 @@ function App() {
       >
         {activeParticipants.map(p => (
           <span key={String(p.id)} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12 }}>
-            <span style={{
+            <span className="dot" style={{
               width: 8, height: 8, borderRadius: '50%',
               background: DOT_COLOR[p.role] ?? '#888',
               flexShrink: 0,
