@@ -51,7 +51,19 @@ const assistLog = table(
   }
 );
 
-const spacetimedb = schema({ room, document, participant, assistLog });
+const runOutput = table(
+  { name: 'run_output', public: true },
+  {
+    id: t.u64().primaryKey().autoInc(),
+    roomId: t.u64(),
+    seq: t.u64(),
+    stream: t.string(),
+    text: t.string(),
+    ts: t.u64(),
+  }
+);
+
+const spacetimedb = schema({ room, document, participant, assistLog, runOutput });
 export default spacetimedb;
 
 // ── Lifecycle ─────────────────────────────────────────────────────────────
@@ -127,6 +139,22 @@ export const finalizeAssistLog = spacetimedb.reducer(
       policyStatus: args.policyStatus,
       createdAt: ctx.timestamp.microsSinceUnixEpoch,
     });
+  }
+);
+
+export const appendRunOutput = spacetimedb.reducer(
+  { roomId: t.u64(), seq: t.u64(), stream: t.string(), text: t.string() },
+  (ctx, { roomId, seq, stream, text }) => {
+    ctx.db.runOutput.insert({ id: 0n, roomId, seq, stream, text, ts: ctx.timestamp.microsSinceUnixEpoch });
+  }
+);
+
+export const clearRunOutput = spacetimedb.reducer(
+  { roomId: t.u64() },
+  (ctx, { roomId }) => {
+    for (const r of ctx.db.runOutput.iter()) {
+      if (r.roomId === roomId) ctx.db.runOutput.id.delete(r.id);
+    }
   }
 );
 

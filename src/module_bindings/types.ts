@@ -49,3 +49,13 @@ export const Room = __t.object("Room", {
 });
 export type Room = __Infer<typeof Room>;
 
+export const RunOutput = __t.object("RunOutput", {
+  id: __t.u64(),
+  roomId: __t.u64(),
+  seq: __t.u64(),
+  stream: __t.string(),
+  text: __t.string(),
+  ts: __t.u64(),
+});
+export type RunOutput = __Infer<typeof RunOutput>;
+

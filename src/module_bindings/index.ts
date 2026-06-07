@@ -34,6 +34,8 @@ import {
 } from "spacetimedb";
 
 // Import all reducer arg schemas
+import AppendRunOutputReducer from "./append_run_output_reducer";
+import ClearRunOutputReducer from "./clear_run_output_reducer";
 import CreateRoomReducer from "./create_room_reducer";
 import FinalizeAssistLogReducer from "./finalize_assist_log_reducer";
 import JoinRoomReducer from "./join_room_reducer";
@@ -46,6 +48,7 @@ import AssistLogRow from "./assist_log_table";
 import DocumentRow from "./document_table";
 import ParticipantRow from "./participant_table";
 import RoomRow from "./room_table";
+import RunOutputRow from "./run_output_table";
 
 /** Type-only namespace exports for generated type groups. */
 
@@ -95,10 +98,23 @@ const tablesSchema = __schema({
       { name: 'room_id_key', constraint: 'unique', columns: ['id'] },
     ],
   }, RoomRow),
+  runOutput: __table({
+    name: 'run_output',
+    indexes: [
+      { accessor: 'id', name: 'run_output_id_idx_btree', algorithm: 'btree', columns: [
+        'id',
+      ] },
+    ],
+    constraints: [
+      { name: 'run_output_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, RunOutputRow),
 });
 
 /** The schema information for all reducers in this module. This is defined the same way as the reducers would have been defined in the server, except the body of the reducer is omitted in code generation. */
 const reducersSchema = __reducers(
+  __reducerSchema("append_run_output", AppendRunOutputReducer),
+  __reducerSchema("clear_run_output", ClearRunOutputReducer),
   __reducerSchema("create_room", CreateRoomReducer),
   __reducerSchema("finalize_assist_log", FinalizeAssistLogReducer),
   __reducerSchema("join_room", JoinRoomReducer),
