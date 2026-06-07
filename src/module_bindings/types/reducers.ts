@@ -9,16 +9,26 @@ import { type Infer as __Infer } from "spacetimedb";
 import AppendRunOutputReducer from "../append_run_output_reducer";
 import ClearRunOutputReducer from "../clear_run_output_reducer";
 import CreateRoomReducer from "../create_room_reducer";
+import DeleteSignalReducer from "../delete_signal_reducer";
 import FinalizeAssistLogReducer from "../finalize_assist_log_reducer";
+import HeartbeatReducer from "../heartbeat_reducer";
 import JoinRoomReducer from "../join_room_reducer";
+import LeaveRoomReducer from "../leave_room_reducer";
+import SendSignalReducer from "../send_signal_reducer";
 import SetRoomPolicyReducer from "../set_room_policy_reducer";
 import UpdateDocumentReducer from "../update_document_reducer";
+import UpdateMediaStateReducer from "../update_media_state_reducer";
 
 export type AppendRunOutputParams = __Infer<typeof AppendRunOutputReducer>;
 export type ClearRunOutputParams = __Infer<typeof ClearRunOutputReducer>;
 export type CreateRoomParams = __Infer<typeof CreateRoomReducer>;
+export type DeleteSignalParams = __Infer<typeof DeleteSignalReducer>;
 export type FinalizeAssistLogParams = __Infer<typeof FinalizeAssistLogReducer>;
+export type HeartbeatParams = __Infer<typeof HeartbeatReducer>;
 export type JoinRoomParams = __Infer<typeof JoinRoomReducer>;
+export type LeaveRoomParams = __Infer<typeof LeaveRoomReducer>;
+export type SendSignalParams = __Infer<typeof SendSignalReducer>;
 export type SetRoomPolicyParams = __Infer<typeof SetRoomPolicyReducer>;
 export type UpdateDocumentParams = __Infer<typeof UpdateDocumentReducer>;
+export type UpdateMediaStateParams = __Infer<typeof UpdateMediaStateReducer>;
 

@@ -5,6 +5,11 @@ import { tables, reducers } from './module_bindings'
 import { Editor } from './Editor'
 import { AssistPanel } from './AssistPanel'
 import { RunPanel } from './RunPanel'
+import { VideoSidebar } from './VideoSidebar'
+import { QuestionPanel } from './QuestionPanel'
+import { ADD_TWO_NUMBERS } from './problem'
+import { isPresentParticipant } from './roomConfig'
+import { useVideoCall } from './useVideoCall'
 
 const DOT_COLOR: Record<string, string> = {
   candidate: '#4ade80',
@@ -21,6 +26,8 @@ export function RoomView() {
   const updateDocument = useReducer(reducers.updateDocument)
   const appendRunOutput = useReducer(reducers.appendRunOutput)
   const clearRunOutput = useReducer(reducers.clearRunOutput)
+  const heartbeat = useReducer(reducers.heartbeat)
+  const leaveRoom = useReducer(reducers.leaveRoom)
 
   const [rooms] = useTable(tables.room)
   const [docs] = useTable(tables.document)
@@ -29,7 +36,9 @@ export function RoomView() {
 
   const currentRoom = rooms.find(r => r.id === ROOM_ID)
   const remoteDoc = docs.find(d => d.roomId === ROOM_ID)
-  const activeParticipants = participants.filter(p => p.roomId === ROOM_ID && p.active)
+  const activeParticipants = participants.filter(
+    p => p.roomId === ROOM_ID && isPresentParticipant(p)
+  )
   const roomOutputs = runOutputs.filter(r => r.roomId === ROOM_ID)
 
   // Derive role/permissions from the DB participant row — not from URL
@@ -43,12 +52,46 @@ export function RoomView() {
   const [localContent, setLocalContent] = useState('')
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const hasPendingWrite = useRef(false)
+  const hasSeededStarter = useRef(false)
 
+  const videoCall = useVideoCall({
+    roomId: ROOM_ID,
+    enabled: isActive && !!myParticipant,
+    localRole: myParticipant?.role ?? '',
+  })
+
+  // Heartbeat every 10s
+  useEffect(() => {
+    if (!isActive || !myParticipant) return
+    heartbeat({ roomId: ROOM_ID })
+    const id = window.setInterval(() => heartbeat({ roomId: ROOM_ID }), 10_000)
+    return () => window.clearInterval(id)
+  }, [isActive, !!myParticipant])
+
+  // Leave room when tab closes
+  useEffect(() => {
+    if (!isActive || !myParticipant) return
+    const onLeave = () => leaveRoom({ roomId: ROOM_ID })
+    window.addEventListener('pagehide', onLeave)
+    return () => window.removeEventListener('pagehide', onLeave)
+  }, [isActive, !!myParticipant])
+
+  // Sync remote doc content into local state
   useEffect(() => {
     if (remoteDoc && !hasPendingWrite.current) {
       setLocalContent(remoteDoc.content)
     }
   }, [remoteDoc?.content])
+
+  // Seed starter code once for the candidate when document is empty
+  useEffect(() => {
+    if (!isActive || !remoteDoc || hasSeededStarter.current) return
+    if (remoteDoc.content.trim() !== '') return
+    if (!canEditDoc) return
+    hasSeededStarter.current = true
+    updateDocument({ roomId: ROOM_ID, content: ADD_TWO_NUMBERS.starterCode })
+    setLocalContent(ADD_TWO_NUMBERS.starterCode)
+  }, [isActive, remoteDoc?.content, canEditDoc])
 
   function handleRun() {
     clearRunOutput({ roomId: ROOM_ID })
@@ -63,7 +106,7 @@ export function RoomView() {
       if (error) appendRunOutput({ roomId: ROOM_ID, seq, stream: 'stderr', text: error })
       worker.terminate()
     }
-    worker.postMessage({ code: editorValue })
+    worker.postMessage({ code: editorValue, harness: ADD_TWO_NUMBERS.runHarness })
   }
 
   function handleChange(val: string) {
@@ -121,9 +164,15 @@ export function RoomView() {
         ))}
       </div>
 
-      {/* Main area */}
+      {/* Main area: video + editor+terminal + assist */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+        <VideoSidebar call={videoCall} />
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <QuestionPanel
+            title={ADD_TWO_NUMBERS.title}
+            description={ADD_TWO_NUMBERS.description}
+            example={ADD_TWO_NUMBERS.example}
+          />
           {canEditDoc && (
             <div style={{ padding: '4px 8px', background: '#0d0d0d', borderBottom: '1px solid #1a1a1a' }}>
               <button
@@ -135,14 +184,14 @@ export function RoomView() {
               </button>
             </div>
           )}
-          <div style={{ flex: '0 0 60%', overflow: 'hidden' }}>
+          <div style={{ flex: '0 0 55%', overflow: 'hidden' }}>
             <Editor
               value={editorValue}
               onChange={canEditDoc ? handleChange : undefined}
               readOnly={!canEditDoc}
             />
           </div>
-          <div style={{ flex: '0 0 40%', borderTop: '1px solid #1a1a1a', overflow: 'hidden' }}>
+          <div style={{ flex: '0 0 35%', borderTop: '1px solid #1a1a1a', overflow: 'hidden' }}>
             <RunPanel outputs={roomOutputs} />
           </div>
         </div>

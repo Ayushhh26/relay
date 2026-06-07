@@ -56,16 +56,17 @@ function AuthedConnector() {
   );
 }
 
-// Used in the anonymous path (dev / CI)
+// Used in the anonymous path (dev / CI). sessionStorage isolates identity per tab
+// so two open tabs get distinct identities for multi-tab video testing.
 function AnonConnector() {
   const connectionBuilder = useMemo(
     () =>
       DbConnection.builder()
         .withUri(HOST)
         .withDatabaseName(DB_NAME)
-        .withToken(localStorage.getItem(TOKEN_KEY) || undefined)
+        .withToken(sessionStorage.getItem(TOKEN_KEY) || undefined)
         .onConnect((_conn, identity, token) => {
-          localStorage.setItem(TOKEN_KEY, token);
+          sessionStorage.setItem(TOKEN_KEY, token);
           sessionStorage.setItem(IDENTITY_KEY, identity.toHexString());
         })
         .onDisconnect(() => {})
