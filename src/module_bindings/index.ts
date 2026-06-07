@@ -39,6 +39,7 @@ import ClearRunOutputReducer from "./clear_run_output_reducer";
 import CreateRoomReducer from "./create_room_reducer";
 import FinalizeAssistLogReducer from "./finalize_assist_log_reducer";
 import JoinRoomReducer from "./join_room_reducer";
+import SetRoomPolicyReducer from "./set_room_policy_reducer";
 import UpdateDocumentReducer from "./update_document_reducer";
 
 // Import all procedure arg schemas
@@ -49,6 +50,7 @@ import DocumentRow from "./document_table";
 import ParticipantRow from "./participant_table";
 import RoomRow from "./room_table";
 import RunOutputRow from "./run_output_table";
+import UserRow from "./user_table";
 
 /** Type-only namespace exports for generated type groups. */
 
@@ -109,6 +111,17 @@ const tablesSchema = __schema({
       { name: 'run_output_id_key', constraint: 'unique', columns: ['id'] },
     ],
   }, RunOutputRow),
+  user: __table({
+    name: 'user',
+    indexes: [
+      { accessor: 'identity', name: 'user_identity_idx_btree', algorithm: 'btree', columns: [
+        'identity',
+      ] },
+    ],
+    constraints: [
+      { name: 'user_identity_key', constraint: 'unique', columns: ['identity'] },
+    ],
+  }, UserRow),
 });
 
 /** The schema information for all reducers in this module. This is defined the same way as the reducers would have been defined in the server, except the body of the reducer is omitted in code generation. */
@@ -118,6 +131,7 @@ const reducersSchema = __reducers(
   __reducerSchema("create_room", CreateRoomReducer),
   __reducerSchema("finalize_assist_log", FinalizeAssistLogReducer),
   __reducerSchema("join_room", JoinRoomReducer),
+  __reducerSchema("set_room_policy", SetRoomPolicyReducer),
   __reducerSchema("update_document", UpdateDocumentReducer),
 );
 

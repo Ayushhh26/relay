@@ -11,6 +11,7 @@ import ClearRunOutputReducer from "../clear_run_output_reducer";
 import CreateRoomReducer from "../create_room_reducer";
 import FinalizeAssistLogReducer from "../finalize_assist_log_reducer";
 import JoinRoomReducer from "../join_room_reducer";
+import SetRoomPolicyReducer from "../set_room_policy_reducer";
 import UpdateDocumentReducer from "../update_document_reducer";
 
 export type AppendRunOutputParams = __Infer<typeof AppendRunOutputReducer>;
@@ -18,5 +19,6 @@ export type ClearRunOutputParams = __Infer<typeof ClearRunOutputReducer>;
 export type CreateRoomParams = __Infer<typeof CreateRoomReducer>;
 export type FinalizeAssistLogParams = __Infer<typeof FinalizeAssistLogReducer>;
 export type JoinRoomParams = __Infer<typeof JoinRoomReducer>;
+export type SetRoomPolicyParams = __Infer<typeof SetRoomPolicyReducer>;
 export type UpdateDocumentParams = __Infer<typeof UpdateDocumentReducer>;
 

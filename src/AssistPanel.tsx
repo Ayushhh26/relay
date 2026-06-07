@@ -13,9 +13,10 @@ const API_URL = (import.meta.env.VITE_API_URL as string) ?? ''
 interface Props {
   roomId: bigint
   policy: string
+  canAsk: boolean
 }
 
-export function AssistPanel({ roomId, policy }: Props) {
+export function AssistPanel({ roomId, policy, canAsk }: Props) {
   const finalizeAssistLog = useReducer(reducers.finalizeAssistLog)
   const [allLogs] = useTable(tables.assistLog)
   const roomLogs = allLogs.filter(l => l.roomId === roomId)
@@ -95,7 +96,12 @@ export function AssistPanel({ roomId, policy }: Props) {
       {apiError && (
         <div style={{ fontSize: 11, color: '#f87171', marginBottom: 4 }}>{apiError}</div>
       )}
-      <div style={{ display: 'flex', gap: 6 }}>
+      {!canAsk && (
+        <div style={{ fontSize: 11, opacity: 0.3, textAlign: 'center', padding: '6px 0' }}>
+          Only candidates can request assistance
+        </div>
+      )}
+      <div style={{ display: canAsk ? 'flex' : 'none', gap: 6 }}>
         <input
           data-testid="assist-input"
           value={prompt}

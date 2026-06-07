@@ -17,4 +17,5 @@ export default __t.row({
   displayName: __t.string().name("display_name"),
   role: __t.string(),
   active: __t.bool(),
+  joinedAt: __t.u64().name("joined_at"),
 });

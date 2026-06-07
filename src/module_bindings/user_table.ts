@@ -11,10 +11,7 @@ import {
 } from "spacetimedb";
 
 export default __t.row({
-  id: __t.u64().primaryKey(),
-  title: __t.string(),
-  createdBy: __t.identity().name("created_by"),
+  identity: __t.identity().primaryKey(),
+  displayName: __t.string().name("display_name"),
   createdAt: __t.u64().name("created_at"),
-  kind: __t.string(),
-  policy: __t.string(),
 });

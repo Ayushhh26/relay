@@ -5,6 +5,7 @@ spacetimedb/dist/
 
 # Build output
 dist/
+tsconfig.tsbuildinfo
 
 # Playwright
 playwright-report/

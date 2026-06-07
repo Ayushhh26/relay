@@ -38,6 +38,7 @@ export const Participant = __t.object("Participant", {
   displayName: __t.string(),
   role: __t.string(),
   active: __t.bool(),
+  joinedAt: __t.u64(),
 });
 export type Participant = __Infer<typeof Participant>;
 
@@ -46,6 +47,8 @@ export const Room = __t.object("Room", {
   title: __t.string(),
   createdBy: __t.identity(),
   createdAt: __t.u64(),
+  kind: __t.string(),
+  policy: __t.string(),
 });
 export type Room = __Infer<typeof Room>;
 
@@ -58,4 +61,11 @@ export const RunOutput = __t.object("RunOutput", {
   ts: __t.u64(),
 });
 export type RunOutput = __Infer<typeof RunOutput>;
+
+export const User = __t.object("User", {
+  identity: __t.identity(),
+  displayName: __t.string(),
+  createdAt: __t.u64(),
+});
+export type User = __Infer<typeof User>;
 
