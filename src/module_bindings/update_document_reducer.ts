@@ -10,19 +10,7 @@ import {
   type Infer as __Infer,
 } from "spacetimedb";
 
-export const Document = __t.object("Document", {
+export default {
   roomId: __t.u64(),
   content: __t.string(),
-  updatedBy: __t.identity(),
-  updatedAt: __t.u64(),
-});
-export type Document = __Infer<typeof Document>;
-
-export const Room = __t.object("Room", {
-  id: __t.u64(),
-  title: __t.string(),
-  createdBy: __t.identity(),
-  createdAt: __t.u64(),
-});
-export type Room = __Infer<typeof Room>;
-
+};
