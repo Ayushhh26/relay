@@ -14,9 +14,14 @@ describe('classifyPrompt', () => {
     expect(classifyPrompt('what approach should I take')).toBe('nudge')
     expect(classifyPrompt('explain the algorithm')).toBe('nudge')
     expect(classifyPrompt('what logic should I use here')).toBe('nudge')
+    expect(classifyPrompt('walk me through this')).toBe('nudge')
+    expect(classifyPrompt('help me understand closures')).toBe('nudge')
+    expect(classifyPrompt('give me a hint')).toBe('nudge')
+    expect(classifyPrompt('what should I do here')).toBe('nudge')
   })
 
   it('classifies solution requests as solution-leaning', () => {
+    // already covered
     expect(classifyPrompt('write the complete solution')).toBe('solution-leaning')
     expect(classifyPrompt('give me the full solution')).toBe('solution-leaning')
     expect(classifyPrompt('full solution please')).toBe('solution-leaning')
@@ -26,12 +31,24 @@ describe('classifyPrompt', () => {
     expect(classifyPrompt('write me the code')).toBe('solution-leaning')
     expect(classifyPrompt('do it for me')).toBe('solution-leaning')
     expect(classifyPrompt('complete the function')).toBe('solution-leaning')
+    // natural variants that were missing
+    expect(classifyPrompt('give me the solution')).toBe('solution-leaning')
+    expect(classifyPrompt('give me a solution')).toBe('solution-leaning')
+    expect(classifyPrompt('solve it for me')).toBe('solution-leaning')
+    expect(classifyPrompt('solve it')).toBe('solution-leaning')
+    expect(classifyPrompt('write the solution')).toBe('solution-leaning')
+    expect(classifyPrompt('show me the solution')).toBe('solution-leaning')
+    expect(classifyPrompt('code it for me')).toBe('solution-leaning')
+    expect(classifyPrompt('build this for me')).toBe('solution-leaning')
+    expect(classifyPrompt('write it for me')).toBe('solution-leaning')
+    expect(classifyPrompt('solve the problem')).toBe('solution-leaning')
   })
 
   it('is case-insensitive', () => {
     expect(classifyPrompt('WRITE THE COMPLETE SOLUTION')).toBe('solution-leaning')
     expect(classifyPrompt('How Do I iterate')).toBe('nudge')
     expect(classifyPrompt('WHAT IS MAP SYNTAX')).toBe('syntax')
+    expect(classifyPrompt('SOLVE IT FOR ME')).toBe('solution-leaning')
   })
 
   it('defaults to syntax for unrecognized prompts', () => {
