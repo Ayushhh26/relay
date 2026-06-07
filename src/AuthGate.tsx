@@ -6,11 +6,12 @@ import {
   AuthBrand,
   AuthCard,
   AuthErrorMessage,
-  AuthFooterNote,
+  AuthFeaturePills,
   AuthLayout,
   AuthPrimaryButton,
   AuthSecondaryButton,
   AuthSpinner,
+  RelayLogo,
 } from './authUi'
 
 interface Props {
@@ -66,15 +67,19 @@ function AuthGateOIDC({ children }: Props) {
   if (!auth.isAuthenticated) {
     return (
       <AuthLayout testId="auth-gate">
+        <div className="auth-hero">
+          <RelayLogo size={56} />
+          <h1 className="auth-hero__title">Relay</h1>
+          <p className="auth-hero__tagline">Code together. The AI knows its place.</p>
+        </div>
         <AuthCard>
-          <AuthBrand subtitle="Sign in to continue" />
-          <p className="auth-copy">
-            Use your SpacetimeDB account to create interview rooms, join sessions, and sync in real time.
+          <p className="auth-copy" style={{ textAlign: 'center', marginBottom: 20 }}>
+            Sign in to create interview rooms, run code live, and collaborate in real time.
           </p>
           <AuthPrimaryButton testId="sign-in-btn" onClick={() => signIn(auth, returnPath)}>
             Sign in with SpacetimeDB
           </AuthPrimaryButton>
-          <AuthFooterNote>Secure sign-in · video · shared editor · AI assist</AuthFooterNote>
+          <AuthFeaturePills />
         </AuthCard>
       </AuthLayout>
     )
