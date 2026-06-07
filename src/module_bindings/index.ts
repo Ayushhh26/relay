@@ -36,13 +36,16 @@ import {
 // Import all reducer arg schemas
 import AppendRunOutputReducer from "./append_run_output_reducer";
 import ClearRunOutputReducer from "./clear_run_output_reducer";
+import CloseRoomReducer from "./close_room_reducer";
 import CreateRoomReducer from "./create_room_reducer";
 import DeleteSignalReducer from "./delete_signal_reducer";
 import FinalizeAssistLogReducer from "./finalize_assist_log_reducer";
 import HeartbeatReducer from "./heartbeat_reducer";
 import JoinRoomReducer from "./join_room_reducer";
 import LeaveRoomReducer from "./leave_room_reducer";
+import SelectInterviewQuestionReducer from "./select_interview_question_reducer";
 import SendSignalReducer from "./send_signal_reducer";
+import SetDocumentLanguageReducer from "./set_document_language_reducer";
 import SetRoomPolicyReducer from "./set_room_policy_reducer";
 import UpdateDocumentReducer from "./update_document_reducer";
 import UpdateMediaStateReducer from "./update_media_state_reducer";
@@ -145,13 +148,16 @@ const tablesSchema = __schema({
 const reducersSchema = __reducers(
   __reducerSchema("append_run_output", AppendRunOutputReducer),
   __reducerSchema("clear_run_output", ClearRunOutputReducer),
+  __reducerSchema("close_room", CloseRoomReducer),
   __reducerSchema("create_room", CreateRoomReducer),
   __reducerSchema("delete_signal", DeleteSignalReducer),
   __reducerSchema("finalize_assist_log", FinalizeAssistLogReducer),
   __reducerSchema("heartbeat", HeartbeatReducer),
   __reducerSchema("join_room", JoinRoomReducer),
   __reducerSchema("leave_room", LeaveRoomReducer),
+  __reducerSchema("select_interview_question", SelectInterviewQuestionReducer),
   __reducerSchema("send_signal", SendSignalReducer),
+  __reducerSchema("set_document_language", SetDocumentLanguageReducer),
   __reducerSchema("set_room_policy", SetRoomPolicyReducer),
   __reducerSchema("update_document", UpdateDocumentReducer),
   __reducerSchema("update_media_state", UpdateMediaStateReducer),

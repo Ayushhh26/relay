@@ -15,6 +15,7 @@ const oidcConfig = {
   authority: (import.meta.env.VITE_OIDC_AUTHORITY as string) ?? 'https://auth.spacetimedb.com/oidc',
   client_id: (import.meta.env.VITE_OIDC_CLIENT_ID as string) ?? '',
   redirect_uri: `${window.location.origin}/callback`,
+  post_logout_redirect_uri: `${window.location.origin}/logout`,
   scope: 'openid profile email',
   response_type: 'code',
   automaticSilentRenew: true,
@@ -43,9 +44,12 @@ function AuthedConnector() {
 
   if (!token) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#111', color: '#e2e8f0', fontFamily: 'sans-serif' }}>
-        Connecting…
-      </div>
+      <AuthLayout testId="auth-connecting">
+        <AuthCard>
+          <AuthBrand subtitle="Connecting" />
+          <AuthSpinner label="Connecting to SpacetimeDB…" />
+        </AuthCard>
+      </AuthLayout>
     );
   }
 
@@ -82,6 +86,7 @@ function AnonConnector() {
 }
 
 import { AuthGate } from './AuthGate.tsx';
+import { AuthLayout, AuthCard, AuthBrand, AuthSpinner } from './authUi.tsx';
 
 function Root() {
   if (AUTH_ENABLED) {

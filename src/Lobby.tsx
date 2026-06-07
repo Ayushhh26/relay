@@ -4,10 +4,29 @@ import { useAuth } from 'react-oidc-context'
 import { useSpacetimeDB, useTable, useReducer } from 'spacetimedb/react'
 import { tables, reducers } from './module_bindings'
 import { profileDisplayName } from './profileDisplayName'
+import { studyEditorModeLabel } from './roomConfig'
 import { saveRoomMembership } from './roomMembership'
+import { AuthUserChip } from './authUi'
 
 const ORIGIN = window.location.origin
 const AUTH_ENABLED = import.meta.env.VITE_AUTH_ENABLED === 'true'
+
+const lobbyShell: CSSProperties = {
+  minHeight: '100vh',
+  background: '#111',
+  color: '#e2e8f0',
+  display: 'flex',
+  flexDirection: 'column',
+  fontFamily: 'sans-serif',
+}
+
+const lobbyTopBar: CSSProperties = {
+  display: 'flex',
+  justifyContent: 'flex-end',
+  padding: '12px 16px',
+  borderBottom: '1px solid #141414',
+  background: '#0a0a0a',
+}
 
 const selectStyle: CSSProperties = {
   padding: '8px 12px', borderRadius: 6, background: '#1a1a1a',
@@ -20,6 +39,7 @@ export function Lobby() {
 
   const [title, setTitle] = useState('')
   const [kind, setKind] = useState('interview')
+  const [editorMode, setEditorMode] = useState('code')
   const [policy, setPolicy] = useState('syntax-only')
   const [submittedTitle, setSubmittedTitle] = useState<string | null>(null)
   const [createdRoomId, setCreatedRoomId] = useState<bigint | null>(null)
@@ -41,7 +61,7 @@ export function Lobby() {
     submittedKindRef.current = kind
     setSubmittedTitle(t)
     setCreatedRoomId(null)
-    createRoom({ title: t, kind, policy })
+    createRoom({ title: t, kind, policy, editorMode: kind === 'study' ? editorMode : 'code' })
   }
 
   // Fallback: match from subscription snapshot (e.g. if insert event was missed)
@@ -62,13 +82,17 @@ export function Lobby() {
   // Use DB value if available, fall back to what we submitted
   const roomKind = createdRoom?.kind ?? submittedKindRef.current
   const isStudy = roomKind === 'study'
+  const roomEditorMode = createdRoom?.editorMode ?? 'code'
 
   if (submittedTitle && resolvedRoomId == null) {
     return (
-      <div style={{ minHeight: '100vh', background: '#111', color: '#e2e8f0', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontFamily: 'sans-serif', gap: 12 }}>
-        <h1 style={{ margin: 0, fontSize: 22 }}>Relay</h1>
-        <span data-testid="connection-status" style={{ fontSize: 13, color: '#4ade80' }}>Connected</span>
-        <p data-testid="creating-room" style={{ margin: 0, fontSize: 13, opacity: 0.5 }}>Creating room…</p>
+      <div style={lobbyShell}>
+        <div style={lobbyTopBar}><AuthUserChip /></div>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
+          <h1 style={{ margin: 0, fontSize: 22 }}>Relay</h1>
+          <span data-testid="connection-status" style={{ fontSize: 13, color: '#4ade80' }}>Connected</span>
+          <p data-testid="creating-room" style={{ margin: 0, fontSize: 13, opacity: 0.5 }}>Creating room…</p>
+        </div>
       </div>
     )
   }
@@ -76,10 +100,17 @@ export function Lobby() {
   if (resolvedRoomId != null) {
     const id = String(resolvedRoomId)
     return (
-      <div style={{ minHeight: '100vh', background: '#111', color: '#e2e8f0', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontFamily: 'sans-serif', padding: 32 }}>
+      <div style={{ ...lobbyShell, padding: '0 0 32px' }}>
+        <div style={lobbyTopBar}><AuthUserChip /></div>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px 32px 0' }}>
         <h1 style={{ margin: '0 0 4px', fontSize: 22 }}>Relay</h1>
         <p style={{ margin: '0 0 24px', fontSize: 13, opacity: 0.5 }}>
           Room created · ID: <span data-testid="room-id">{id}</span>
+          {isStudy && (
+            <span data-testid="editor-mode-label" style={{ marginLeft: 8 }}>
+              · {studyEditorModeLabel(roomEditorMode === 'notepad' ? 'notepad' : 'code')}
+            </span>
+          )}
         </p>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%', maxWidth: 520 }}>
@@ -117,12 +148,15 @@ export function Lobby() {
         >
           ← Create another room
         </button>
+        </div>
       </div>
     )
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#111', color: '#e2e8f0', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontFamily: 'sans-serif', gap: 16 }}>
+    <div style={lobbyShell}>
+      <div style={lobbyTopBar}><AuthUserChip /></div>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, padding: 24 }}>
       <h1 style={{ margin: 0, fontSize: 22 }}>Relay</h1>
       <p style={{ margin: 0, fontSize: 13, opacity: 0.5 }}>
         <span
@@ -153,6 +187,18 @@ export function Lobby() {
           <option value="study">Study session (everyone edits)</option>
         </select>
 
+        {kind === 'study' && (
+          <select
+            data-testid="editor-mode-select"
+            value={editorMode}
+            onChange={e => setEditorMode(e.target.value)}
+            style={selectStyle}
+          >
+            <option value="code">Code editor (Run + terminal)</option>
+            <option value="notepad">Notepad (shared notes)</option>
+          </select>
+        )}
+
         <select
           data-testid="policy-select"
           value={policy}
@@ -176,6 +222,7 @@ export function Lobby() {
         >
           Create Room
         </button>
+      </div>
       </div>
     </div>
   )
