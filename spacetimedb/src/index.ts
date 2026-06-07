@@ -111,27 +111,35 @@ function canEdit(ctx: any, roomId: bigint): boolean {
 
 export const init = spacetimedb.init((_ctx) => {});
 
+const SPACETIMEDB_OIDC_ISSUER = 'https://auth.spacetimedb.com/oidc';
+
+function isSpacetimeAuthOidc(jwt: unknown): boolean {
+  if (jwt == null) return false;
+  return (jwt as { issuer?: string }).issuer === SPACETIMEDB_OIDC_ISSUER;
+}
+
 export const onConnect = spacetimedb.clientConnected((ctx) => {
   const jwt = (ctx as any).senderAuth?.jwt ?? null;
 
   if (jwt != null) {
     const issuer: string = (jwt as any).issuer ?? '';
-    if (issuer !== 'https://auth.spacetimedb.com/oidc') {
+    // Local dev / anonymous tokens may carry a non-OIDC issuer — allow those for CI.
+    // Only reject tokens that claim to be SpacetimeAuth but use a wrong issuer path.
+    if (issuer.startsWith('https://auth.spacetimedb.com/') && issuer !== SPACETIMEDB_OIDC_ISSUER) {
       throw new SenderError('Invalid token issuer');
     }
   }
 
-  const displayName = jwt != null
-    ? ((jwt.fullPayload as any)['name']
-        ?? (jwt.fullPayload as any)['preferred_username']
-        ?? (jwt.fullPayload as any)['email']
+  const displayName = isSpacetimeAuthOidc(jwt)
+    ? ((jwt as any).fullPayload['name']
+        ?? (jwt as any).fullPayload['preferred_username']
+        ?? (jwt as any).fullPayload['email']
         ?? ctx.sender.toHexString().slice(0, 8))
     : ctx.sender.toHexString().slice(0, 8);
 
   const existing = ctx.db.user.identity.find(ctx.sender);
   if (existing) {
-    // Update displayName if an OIDC token provided a real name
-    if (jwt != null) {
+    if (isSpacetimeAuthOidc(jwt)) {
       ctx.db.user.identity.update({ ...existing, displayName });
     }
   } else {

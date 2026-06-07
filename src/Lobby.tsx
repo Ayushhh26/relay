@@ -1,4 +1,4 @@
-import { useState, type CSSProperties } from 'react'
+import { useRef, useState, type CSSProperties } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from 'react-oidc-context'
 import { useSpacetimeDB, useTable, useReducer } from 'spacetimedb/react'
@@ -11,32 +11,47 @@ const AUTH_ENABLED = import.meta.env.VITE_AUTH_ENABLED === 'true'
 export function Lobby() {
   const { isActive, identity } = useSpacetimeDB()
   const createRoom = useReducer(reducers.createRoom)
-  const [rooms] = useTable(tables.room)
 
   const [title, setTitle] = useState('')
   const [policy, setPolicy] = useState('syntax-only')
   const [submittedTitle, setSubmittedTitle] = useState<string | null>(null)
+  const [createdRoomId, setCreatedRoomId] = useState<bigint | null>(null)
 
-  const myIdentityHex = identity?.toHexString() ?? ''
+  const submittedTitleRef = useRef<string | null>(null)
+
+  const [rooms] = useTable(tables.room, {
+    onInsert: row => {
+      if (row.title !== submittedTitleRef.current) return
+      setCreatedRoomId(row.id)
+    },
+  })
 
   function handleCreate() {
     if (!title.trim() || !isActive) return
     const t = title.trim()
+    submittedTitleRef.current = t
     setSubmittedTitle(t)
+    setCreatedRoomId(null)
     createRoom({ title: t, kind: 'interview', policy })
   }
 
-  const createdRoom = submittedTitle
-    ? rooms
-        .filter(r => {
-          if (r.title !== submittedTitle) return false
-          if (myIdentityHex) return r.createdBy.toHexString() === myIdentityHex
-          return true
-        })
-        .sort((a, b) => Number(b.createdAt - a.createdAt))[0]
-    : null
+  // Fallback: match from subscription snapshot (e.g. if insert event was missed)
+  const createdRoom = createdRoomId != null
+    ? rooms.find(r => r.id === createdRoomId)
+    : submittedTitle
+      ? rooms
+          .filter(r => {
+            if (r.title !== submittedTitle) return false
+            const hex = identity?.toHexString() ?? ''
+            if (hex) return r.createdBy.toHexString() === hex
+            return true
+          })
+          .sort((a, b) => Number(b.createdAt - a.createdAt))[0]
+      : null
 
-  if (submittedTitle && !createdRoom) {
+  const resolvedRoomId = createdRoomId ?? createdRoom?.id ?? null
+
+  if (submittedTitle && resolvedRoomId == null) {
     return (
       <div style={{ minHeight: '100vh', background: '#111', color: '#e2e8f0', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontFamily: 'sans-serif', gap: 12 }}>
         <h1 style={{ margin: 0, fontSize: 22 }}>Relay</h1>
@@ -46,8 +61,8 @@ export function Lobby() {
     )
   }
 
-  if (createdRoom) {
-    const id = String(createdRoom.id)
+  if (resolvedRoomId != null) {
+    const id = String(resolvedRoomId)
     return (
       <div style={{ minHeight: '100vh', background: '#111', color: '#e2e8f0', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontFamily: 'sans-serif', padding: 32 }}>
         <h1 style={{ margin: '0 0 4px', fontSize: 22 }}>Relay</h1>
@@ -72,7 +87,7 @@ export function Lobby() {
         </div>
 
         <button
-          onClick={() => { setSubmittedTitle(null); setTitle('') }}
+          onClick={() => { submittedTitleRef.current = null; setSubmittedTitle(null); setCreatedRoomId(null); setTitle('') }}
           style={{ marginTop: 24, fontSize: 12, opacity: 0.4, background: 'none', border: 'none', color: '#e2e8f0', cursor: 'pointer' }}
         >
           ← Create another room

@@ -11,7 +11,8 @@ test.describe('Phase 9 – lobby + server-enforced roles', () => {
   test('host creates room from lobby and sees 3 invite links', async ({ page }) => {
     await page.goto('/')
     await waitForConnection(page)
-    await page.locator('[data-testid="room-title-input"]').fill('Demo Interview')
+    const title = `demo-${Date.now()}`
+    await page.locator('[data-testid="room-title-input"]').fill(title)
     await page.locator('[data-testid="create-room-btn"]').click()
 
     await expect(page.locator('[data-testid="room-id"]')).toBeVisible({ timeout: 8_000 })

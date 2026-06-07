@@ -8,20 +8,29 @@ import { profileDisplayName } from './profileDisplayName'
 const AUTH_ENABLED = import.meta.env.VITE_AUTH_ENABLED === 'true'
 
 export function Join() {
+  if (AUTH_ENABLED) return <JoinAuthed />
+  return <JoinInner profileDefaultName="" />
+}
+
+function JoinAuthed() {
+  const auth = useAuth()
+  return <JoinInner profileDefaultName={profileDisplayName(auth)} />
+}
+
+function JoinInner({ profileDefaultName }: { profileDefaultName: string }) {
   const { roomId: roomIdStr } = useParams<{ roomId: string }>()
   const roomId = BigInt(roomIdStr!)
   const [searchParams] = useSearchParams()
   const role = searchParams.get('role') ?? 'observer'
   const nameFromUrl = searchParams.get('name') ?? ''
 
-  const auth = useAuth()
   const navigate = useNavigate()
   const { isActive } = useSpacetimeDB()
   const joinRoomFn = useReducer(reducers.joinRoom)
 
   const [rooms, roomsReady] = useTable(tables.room)
   const [participants, participantsReady] = useTable(tables.participant)
-  const defaultName = nameFromUrl || (AUTH_ENABLED ? profileDisplayName(auth) : '')
+  const defaultName = nameFromUrl || profileDefaultName
   const [name, setName] = useState(defaultName)
   const [joinError, setJoinError] = useState<string | null>(null)
   const hasAutoJoined = useRef(false)

@@ -35,6 +35,7 @@ jobs:
         env:
           VITE_SPACETIMEDB_HOST: https://maincloud.spacetimedb.com
           VITE_SPACETIMEDB_DB_NAME: relay-demo
+          VITE_AUTH_ENABLED: 'false'
 
   # ── Job 2: Unit tests (classifyPrompt + server logic) ────────────────────
   unit:
@@ -109,6 +110,7 @@ jobs:
         env:
           VITE_SPACETIMEDB_HOST: ws://localhost:3000
           VITE_SPACETIMEDB_DB_NAME: relay-demo
+          VITE_AUTH_ENABLED: 'false'
 
       - name: Run E2E tests
         run: npm run test:e2e
