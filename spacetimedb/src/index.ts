@@ -112,14 +112,29 @@ function canEdit(ctx: any, roomId: bigint): boolean {
 export const init = spacetimedb.init((_ctx) => {});
 
 export const onConnect = spacetimedb.clientConnected((ctx) => {
+  const jwt = (ctx as any).senderAuth?.jwt ?? null;
+
+  if (jwt != null) {
+    const issuer: string = (jwt as any).issuer ?? '';
+    if (issuer !== 'https://auth.spacetimedb.com/oidc') {
+      throw new SenderError('Invalid token issuer');
+    }
+  }
+
+  const displayName = jwt != null
+    ? ((jwt.fullPayload as any)['name']
+        ?? (jwt.fullPayload as any)['preferred_username']
+        ?? (jwt.fullPayload as any)['email']
+        ?? ctx.sender.toHexString().slice(0, 8))
+    : ctx.sender.toHexString().slice(0, 8);
+
   const existing = ctx.db.user.identity.find(ctx.sender);
-  if (!existing) {
-    const jwt = (ctx as any).senderAuth?.jwt ?? null;
-    const displayName = jwt != null
-      ? ((jwt.fullPayload as any)['name']
-          ?? (jwt.fullPayload as any)['preferred_username']
-          ?? ctx.sender.toHexString().slice(0, 8))
-      : ctx.sender.toHexString().slice(0, 8);
+  if (existing) {
+    // Update displayName if an OIDC token provided a real name
+    if (jwt != null) {
+      ctx.db.user.identity.update({ ...existing, displayName });
+    }
+  } else {
     ctx.db.user.insert({
       identity: ctx.sender,
       displayName,
